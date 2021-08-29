@@ -41,7 +41,8 @@ exit
 }
 
 cleanup() {
-  trap - SIGINT SIGTERM ERR EXIT
+ trap - SIGINT SIGTERM ERR EXIT
+ rm -rf $temp_dir/*
 }
 
 setup_colors() {
@@ -153,7 +154,11 @@ func_timestamp() {
 }
 
 curl_fiat() {
- curl -s -H 'user-agent: Mozilla' -H 'Accept-Language: en-US,en;q=0.9,it;q=0.8' "https://www.google.com/search?q=1+$symbol+to+usd" |grep -oP "$symbol = [0-9]+\\.[0-9]+ USD" |head -n1
+ if [ -f $temp_dir/fiat_$symbol ]; then
+  cat $temp_dir/fiat_$symbol;
+ else
+  curl -s -H 'user-agent: Mozilla' -H 'Accept-Language: en-US,en;q=0.9,it;q=0.8' "https://www.google.com/search?q=1+$symbol+to+usd" |grep -oP "$symbol = [0-9]+\\.[0-9]+ USD" |head -n1 |tee $temp_dir/fiat_$symbol
+ fi
 }
 
 curl_binance() {
@@ -195,7 +200,7 @@ if [ ${param} == "runaway" ]; then
 fi
 
 if [ ${param} == "balance" ]; then
- rm -f $temp_dir/total_balance_*
+ rm -f $temp_dir/*
  $(
  if echo -n $binance_key$binance_secret |wc -c |grep -Eq "^128$"; then
   binance_endpoint="sapi/v1/capital/config/getall"
