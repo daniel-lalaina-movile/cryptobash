@@ -33,4 +33,5 @@
 
 ## Instructions:
 
-- ./crypto.bash -h   (run help)
+- ./crypto.bash -h  
+(run help)
