@@ -9,13 +9,14 @@
 
 ## Installation:
 
-git clone git@github.com:daniel-lalaina-movile/cryptobash.git  (or git clone https://github.com/daniel-lalaina-movile/cryptobash.git)
+git clone git@github.com:daniel-lalaina-movile/cryptobash.git
+(or git clone https://github.com/daniel-lalaina-movile/cryptobash.git)
 
 cd bashcrypto
 
 cp .credentials-example .credentials
 
-Include your API credentials in .credentials (If you use only one of both exchanges, just keep the other one empty.)
+Include your API credentials in .credentials file (If you use only one of both exchanges, just keep the other one empty.)
 
 ## Current capabilities
 
