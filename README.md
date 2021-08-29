@@ -16,7 +16,8 @@ cd bashcrypto
 
 cp .credentials-example .credentials
 
-Include your API credentials in .credentials file (If you use only one of both exchanges, just keep the other one empty.)
+Include your API credentials in .credentials file  
+(If you use only one of both exchanges, just keep the other one empty.)
 
 ## Current capabilities
 
