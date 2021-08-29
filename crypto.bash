@@ -92,9 +92,9 @@ parse_params() {
   # check required params and arguments
   if [[ "${param}" != @(order|balance|runaway) ]]; then die "Missing required parameter: -p <order|balance|runaway>"; fi
   if [ ${param} == "order" ]; then
-   side=$(echo ${@-} |grep -oP "(SELL|BUY)" || die "SIDE argument is required for param order. Ex -p order SELL ADAUSDT 30")
-   symbol=$(echo ${@-} |grep -oP "[A-Z]+(USDT|BTC)" || die "SYMBOL argument is required for param order. Ex -p order SELL ADAUSDT 30")
-   qty=$(echo ${@-} |grep -oP "[0-9.]+" || die "QUOTEQTY argument is required for param order. Ex -p order SELL ADAUSDT 30")
+   side=$(echo ${@-} |grep -oP "\b(SELL|BUY)\b" || die "SIDE argument is required for param order. Ex -p order SELL ADAUSDT 30")
+   symbol=$(echo ${@-} |grep -oP "\b[A-Z0-9]+(USDT|BTC)\b" || die "SYMBOL argument is required for param order. Examples\nTo SELL 30 USDT of ADA:\n-p order SELL ADAUSDT 30\nTo buy 30 USDT of each ADA,SOL,LUNA:\n-p order SELL ADAUSDT,SOLUSDT,LUNAUSDT 30")
+   qty=$(echo ${@-} |grep -oP "\b[0-9.]+\b" || die "QUOTEQTY argument (which is the amount you want to spend, not the ammount of coins you want to buy/sell) is required for param order. Ex -p order SELL ADAUSDT 30")
    exchange=$(echo ${@-} |grep -oPi "(binance|gateio)" || die "Exchange argument is required for param order. Ex\n-p order binance SELL ADAUSDT 30\n-p order gateio SELL ADAUSDT 30\n -p order binance-gateio SELL ADAUSDT 30")
   fi
   #[[ ${#args[@]} -ne 3 ]] && [ ${param} == "order" ] && die "Missing required arguments for param order, which are <quoteOrderQty> <symbol> <side>"
@@ -242,19 +242,22 @@ fi
 
 if [ ${param} == "order" ]; then
 
- if echo $exchange |grep "binance"; then
-  method="POST"
-  binance_endpoint="api/v3/order$test"
-  timestamp=$(func_timestamp)
-  binance_query_string="quoteOrderQty=$qty&symbol=$symbol&side=$side&type=MARKET&timestamp=$timestamp"
-  binance_signature=$(echo -n "$binance_query_string" |openssl dgst -sha256 -hmac "$binance_secret" |awk '{print $2}')
-  curl_binance
- fi
+ for symbol in `echo $symbol`; do
 
- if echo $exchange |grep "gateio"; then
-  # TODO
-  echo "gateio order is not supported yet. I'm still thinking about it, cause they don't support orders at MARKET price :-("
- fi
+  if echo $exchange |grep -q "binance"; then
+   method="POST"
+   binance_endpoint="api/v3/order$test"
+   timestamp=$(func_timestamp)
+   binance_query_string="quoteOrderQty=$qty&symbol=$symbol&side=$side&type=MARKET&timestamp=$timestamp"
+   binance_signature=$(echo -n "$binance_query_string" |openssl dgst -sha256 -hmac "$binance_secret" |awk '{print $2}')
+   curl_binance
+  fi
+ 
+  if echo $exchange |grep -q "gateio"; then
+   # TODO
+   echo "gateio order is not supported yet. I'm still thinking about it, cause they don't support orders at MARKET price :-("
+  fi
 
+ done
  exit
 fi
