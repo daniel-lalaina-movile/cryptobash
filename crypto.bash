@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# v2.2.2
-# https://gist.github.com/daniel-lalaina-movile/5641c4299a87ac2f510bf4900522e2e3
+
+# https://github.com/daniel-lalaina-movile/cryptobash
 
 set -Eeuo pipefail
 trap cleanup SIGINT SIGTERM ERR EXIT
