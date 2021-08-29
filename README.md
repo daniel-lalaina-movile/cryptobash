@@ -1,6 +1,6 @@
 # cryptobash
 
-# This project makes requests to Binance and Gate.io crypto exchanges.
+## This project makes requests to Binance and Gate.io crypto exchanges.
 
 ## Installation:
 
