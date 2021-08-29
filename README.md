@@ -14,4 +14,7 @@ Include your API keys and secrets in .credentials (If you use only one of both e
 
 ## Instructions:
 
-./crypto.bash -h
+./crypto.bash -h   (run help)
+
+Example:
+![screenshot](https://user-images.githubusercontent.com/1348148/131236986-61bb4f9c-fd60-4f31-be14-7145a7d4a53a.gif)
