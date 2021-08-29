@@ -172,6 +172,7 @@ curl_gateio() {
 
 curl_gateio_price() {
  curl -s -X $method 'https://'$gateio_uri'/api/v4/spot/tickers?currency_pair='$symbol'_USDT' |jq '.[].last' |grep -oP "[0-9]+\.[0-9]+" || \
+ curl_fiat |grep -oP '[0-9.]+' || \
  echo `curl -s -X $method 'https://'$gateio_uri'/api/v4/spot/tickers?currency_pair='$symbol'_BTC' |jq '.[].last' |grep -oP "[0-9]+\.[0-9]+"` \* `curl -s -X $method 'https://'$gateio_uri'/api/v4/spot/tickers?currency_pair=BTC_USDT' |jq '.[].last' |grep -oP "[0-9]+\.[0-9]+"` |bc -l
 }
 
