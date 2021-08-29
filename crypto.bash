@@ -152,12 +152,17 @@ func_timestamp() {
  echo -n $(($(date +%s%N)/1000000))
 }
 
+curl_fiat() {
+ curl -s -H 'user-agent: Mozilla' -H 'Accept-Language: en-US,en;q=0.9,it;q=0.8' "https://www.google.com/search?q=1+$symbol+to+usd" |grep -oP "$symbol = [0-9]+\\.[0-9]+ USD" |head -n1
+}
+
 curl_binance() {
  curl -s -X $method -H "X-MBX-APIKEY: $binance_key" "https://$binance_uri/$binance_endpoint?$binance_query_string&signature=$binance_signature"
 }
 
 curl_binance_price() {
  curl -s -X $method 'https://'$binance_uri'/api/v3/ticker/price?symbol='$symbol'USDT' |grep -oP "[0-9]+\.[0-9]+" || \
+ curl_fiat |grep -oP '[0-9.]+' || \
  echo `curl -s $method 'https://'$binance_uri'/api/v3/ticker/price?symbol='$symbol'BTC' |grep -oP "[0-9]+\.[0-9]+"` \* `curl -s $method 'https://'$binance_uri'/api/v3/ticker/price?symbol=BTCUSDT' |grep -oP "[0-9]+\.[0-9]+"` |bc -l
 }
 
