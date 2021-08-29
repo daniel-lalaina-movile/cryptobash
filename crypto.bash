@@ -223,9 +223,9 @@ if [ ${param} == "balance" ]; then
  # Unifying and summing up the amounts of same assets from multiple exchanges. And sorting.
  awk -F'\t' '{x[$1]+=$2} END{for(i in x) printf("%s\t%d\n", i, x[i])}' $temp_dir/total_balance_* |sort -n -k2 > $temp_dir/total_balance
  # Including footer Total with the sum of column 2
- echo -e "Total\\t`awk '{sum+=$2;} END{print sum;}' $temp_dir/total_balance`" >> $temp_dir/total_balance
+ echo -e "Total\\t`awk -F'\t' '{sum+=$2;} END{print sum;}' $temp_dir/total_balance`" >> $temp_dir/total_balance
  # Including header and percentage column. And printing.
- msg "\\n${BLUE}`awk -F'\t' 'BEGIN{printf "Crypto\tUSDT\tAllocation\n"}{a[++i]=$1;b[i]=$2};/Total/{for(j=1;j<=i;++j)printf "%s\t%.2f\t%.2f%%\n",a[j],b[j],(b[j]*100/$2)}' $temp_dir/total_balance`\\n${NOFORMAT}"
+ msg "\\n${BLUE}`awk -F'\t' 'BEGIN{printf "Crypto\tUSDT\tAllocation\n"}{a[++i]=$1;b[i]=$2};/Total/{for(j=1;j<=i;++j)printf "%s\t%.2f\t%.2f%%\n",a[j],b[j],(b[j]*100/$2)}' $temp_dir/total_balance |column -ts $'\t'`\\n${NOFORMAT}"
 
  exit
 fi
