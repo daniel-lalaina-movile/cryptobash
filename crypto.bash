@@ -212,8 +212,7 @@ if [ ${param} == "balance" ]; then
    in_usdt=$(echo "scale=2; ($(curl_binance_price) * $qty)/1" |bc -l)
    echo -e "$symbol\\t$in_usdt" >> $temp_dir/total_balance_binance
   done
- fi
-
+ fi &
  if echo -n $gateio_key$gateio_secret |wc -c |grep -Eq "^96$"; then
   gateio_query_string=""
   gateio_body=""
