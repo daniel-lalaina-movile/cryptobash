@@ -42,7 +42,7 @@ exit
 
 cleanup() {
  trap - SIGINT SIGTERM ERR EXIT
- rm -rf $temp_dir/*
+ #rm -rf $temp_dir/*
 }
 
 setup_colors() {
@@ -207,9 +207,9 @@ if [ ${param} == "balance" ]; then
   timestamp=$(func_timestamp)
   binance_query_string="timestamp=$timestamp"
   binance_signature=$(echo -n "$binance_query_string" |openssl dgst -sha256 -hmac "$binance_secret" |awk '{print $2}')
-  curl_binance |jq '.[] |{coin: .coin, free: .free, locked: .locked} | select((.free|tonumber>0.0001) or (.locked|tonumber>0.001))' |grep -oP "[A-Z0-9.]+" |paste - - - |awk '{print $1"\t"$2+$3}' |while read symbol qty; do
+  curl_binance |jq '.[] |{coin: .coin, free: .free, locked: .locked} | select((.free|tonumber>0.0001) or (.locked|tonumber>0.001))' |grep -oP "[A-Z0-9.]+" |paste - - - |awk '{printf "%s\t%.2f\n",$1,($2+$3)}' |tee /tmp/ff |while read symbol qty; do
    if [ $symbol == "USDT" ]; then echo -e "USDT\\t$qty" >> $temp_dir/total_balance_binance; continue; fi
-   in_usdt=$(echo "scale=2; ($(curl_binance_price) * $qty)/1" |bc -l)
+   in_usdt=$(echo "($(curl_binance_price) * $qty)/1" |bc -l)
    echo -e "$symbol\\t$in_usdt" >> $temp_dir/total_balance_binance
   done
  fi &
@@ -221,9 +221,9 @@ if [ ${param} == "balance" ]; then
   timestamp=$(date +%s)
   gateio_sign_string="$method\n/$gateio_endpoint\n$gateio_query_string\n$gateio_body_hash\n$timestamp"
   gateio_signature=$(printf "$gateio_sign_string" | openssl sha512 -hmac "$gateio_secret" | awk '{print $NF}')
-  curl_gateio |jq '.[] |{currency: .currency, available: .available, locked: .locked}' |grep -oP "[A-Z0-9.]+" |paste - - - |awk '{print $1"\t"$2+$3}' |while read symbol qty; do
+  curl_gateio |jq '.[] |{currency: .currency, available: .available, locked: .locked}' |grep -oP "[A-Z0-9.]+" |paste - - - |awk '{printf "%s\t%.2f\n",$1,($2+$3)}' |tee /tmp/ss |while read symbol qty; do
    if [ $symbol == "USDT" ]; then echo -e "USDT\\t$qty" >> $temp_dir/total_balance_gateio; continue; fi
-   in_usdt=$(echo "scale=2; ($(curl_gateio_price) * $qty)/1" |bc -l)
+   in_usdt=$(echo "($(curl_gateio_price) * $qty)/1" |bc -l)
    echo -e "$symbol\\t$in_usdt" >> $temp_dir/total_balance_gateio
   done
  fi
@@ -231,7 +231,7 @@ if [ ${param} == "balance" ]; then
  if [ $web == "false" ]; then progress_bar; else wait; fi
 
  # Unifying and summing up the amounts of same assets from multiple exchanges. And sorting.
- awk -F'\t' '{x[$1]+=$2} END{for(i in x) printf("%s\t%d\n", i, x[i])}' $temp_dir/total_balance_* |sort -n -k2 > $temp_dir/total_balance
+ awk -F'\t' '{x[$1]+=$2} END{for(i in x) printf("%s\t%.2f\n", i, x[i])}' $temp_dir/total_balance_* |sort -n -k2 > $temp_dir/total_balance
  # Including footer Total with the sum of column 2
  echo -e "Total\\t`awk -F'\t' '{sum+=$2;} END{print sum;}' $temp_dir/total_balance`" >> $temp_dir/total_balance
  # Including header and percentage column. And printing.
