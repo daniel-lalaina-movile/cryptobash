@@ -188,10 +188,10 @@ if [ ${param} == "runaway" ]; then
   timestamp=$(func_timestamp)
   binance_query_string="timestamp=$timestamp"
   binance_signature=$(echo -n "$binance_query_string" |openssl dgst -sha256 -hmac "$binance_secret" |awk '{print $2}')
-  curl_binance |jq '.[] |{coin: .coin, free: .free} | select(.free|tonumber>0.0001)' |grep -oP "[A-Z0-9.]+" |sed '/USDT/,+1d' |paste - - |while read symbol qty; do
+  curl_binance |jq '.[] |{coin: .coin, free: .free} | select(.free|tonumber>0.0001)' |grep -oP "[A-Z0-9.]+" |sed '/^USDT/,+1d' |paste - - |while read symbol qty; do
    binance_endpoint="api/v3/order$test"
    timestamp=$(func_timestamp)
-   binance_query_string="quantity=$qty&symbol=$symbol&side=SELL&type=MARKET&timestamp=$timestamp"
+   binance_query_string="quantity=$qty&symbol=${symbol}USDT&side=SELL&type=MARKET&timestamp=$timestamp"
    binance_signature=$(echo -n "$binance_query_string" |openssl dgst -sha256 -hmac "$binance_secret" |awk '{print $2}') 
    curl_binance
   done
