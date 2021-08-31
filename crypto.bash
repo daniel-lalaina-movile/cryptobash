@@ -184,20 +184,22 @@ curl_gateio_price() {
 }
 
 if [ ${param} == "runaway" ]; then
- read -p "Are you sure? This will convert all your assets to USDT (y/n)" -n 1 -r
- if [[ $REPLY =~ ^[Yy]$ ]]; then
+ if [ -z $test ]; then read -p "Are you sure? This will convert all your assets to USDT (y/n)" -n 1 -r; if [[ ! $REPLY =~ ^[Yy]$ ]]; then exit; fi; fi
   binance_endpoint="sapi/v1/capital/config/getall"
   timestamp=$(func_timestamp)
   binance_query_string="timestamp=$timestamp"
   binance_signature=$(echo -n "$binance_query_string" |openssl dgst -sha256 -hmac "$binance_secret" |awk '{print $2}')
-  curl_binance |jq '.[] |{coin: .coin, free: .free} | select(.free|tonumber>0.0001)' |grep -oP "[A-Z0-9.]+" |sed '/^USDT/,+1d' |paste - - |while read symbol qty; do
+  curl_binance |jq '.[] |{coin: .coin, free: .free} | select((.free|tonumber>0.0001) and (.coin!="USDT"))' |grep -oP "[A-Z0-9.]+" |paste - - |while read symbol qty; do
+   method="POST"
    binance_endpoint="api/v3/order$test"
    timestamp=$(func_timestamp)
-   binance_query_string="quantity=$qty&symbol=${symbol}USDT&side=SELL&type=MARKET&timestamp=$timestamp"
-   binance_signature=$(echo -n "$binance_query_string" |openssl dgst -sha256 -hmac "$binance_secret" |awk '{print $2}') 
-   curl_binance
+   binance_query_string="quantity=$(echo -n $qty |sed 's/\..*//g')&symbol=${symbol}USDT&side=SELL&type=MARKET&timestamp=$timestamp"
+   binance_signature=$(echo -n "$binance_query_string" |openssl dgst -sha256 -hmac "$binance_secret" |awk '{print $2}')
+   curl_binance |grep -v "Invalid symbol" || \
+    binance_query_string="quantity=$qty&symbol=${symbol}BTC&side=SELL&type=MARKET&timestamp=$timestamp" \
+    binance_signature=$(echo -n "$binance_query_string" |openssl dgst -sha256 -hmac "$binance_secret" |awk '{print $2}') \
+    curl_binance &
   done
- fi
  exit
 fi
 
