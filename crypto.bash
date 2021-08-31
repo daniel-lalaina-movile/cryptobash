@@ -13,6 +13,8 @@ binance_uri="api.binance.com"
 gateio_uri="api.gateio.ws"
 source $script_dir/.credentials
 
+LC_NUMERIC="en_US.UTF-8"
+
 usage() {
   cat << EOF
 Usage: $script_name [-h] [-v] [-t] -p <order|balance|runaway> arg1 [arg2...]
