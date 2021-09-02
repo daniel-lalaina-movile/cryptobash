@@ -215,10 +215,13 @@ if [ ${param} == "balance" ]; then
   sed -i 's/"//g' $temp_dir/binance_24hr $temp_dir/binance_balance
   btcusdt=$(grep BTCUSDT $temp_dir/binance_24hr |awk '{print $2}')
   #echo -e "symbol\tammount\tusdt_available\tusdt_locked\tusd_total\tlast24hr" > temp/binance_final
-  cat temp/binance_balance |while read symbol available locked; do
+  cat $temp_dir/binance_balance |while read symbol available locked; do
    amount=$(echo "$available + $locked" | bc -l)
    if grep -q "^${symbol}USDT" $temp_dir/binance_24hr; then
     read usdt_pair_price last24hr <<<$(grep "^${symbol}USDT" $temp_dir/binance_24hr |awk '{print $2,$3}')
+   elif [ ${symbol} == "USDT" ]; then
+    usdt_pair_price="1"
+    last24hr="0"
    elif grep -q "^${symbol}BTC" $temp_dir/binance_24hr; then
     read btc_pair_price last24hr <<<$(grep "^${symbol}BTC" $temp_dir/binance_24hr |awk '{print $2,$3}')
     usdt_pair_price=$(echo "$btc_pair_price * ${btcusdt}" |bc -l)
@@ -248,6 +251,9 @@ if [ ${param} == "balance" ]; then
    amount=$(echo "$available + $locked" | bc -l)
    if grep -q "^${symbol}USDT" $temp_dir/gateio_24hr; then
     read usdt_pair_price last24hr <<<$(grep "^${symbol}USDT" $temp_dir/gateio_24hr |awk '{print $2,$3}')
+   elif [ ${symbol} == "USDT" ]; then
+    usdt_pair_price="1"
+    last24hr="0"
    elif grep -q "^${symbol}BTC" $temp_dir/gateio_24hr; then
     read btc_pair_price last24hr <<<$(grep "^${symbol}BTC" $temp_dir/gateio_24hr |awk '{print $2,$3}')
     usdt_pair_price=$(echo "$btc_pair_price * ${btcusdt}" |bc -l)
