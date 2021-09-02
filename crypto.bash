@@ -13,6 +13,7 @@ binance_uri="api.binance.com"
 gateio_uri="api.gateio.ws"
 source $script_dir/.credentials
 
+fiat_currency="BRL"
 LC_NUMERIC="en_US.UTF-8"
 
 usage() {
@@ -156,11 +157,11 @@ func_timestamp() {
 }
 
 curl_fiat() {
- if [ -f $temp_dir/fiat_$fiat ]; then
+ if [ -f $temp_dir/fiat_$fiat_currency ]; then
   #cache
-  cat $temp_dir/fiat_$fiat;
+  cat $temp_dir/fiat_$fiat_curency
  else
-  curl -s -H 'user-agent: Mozilla' -H 'Accept-Language: en-US,en;q=0.9,it;q=0.8' "https://www.google.com/search?q=1+$fiat+to+usd" |grep -oP "$fiat = [0-9]+\\.[0-9]+ USD" |head -n1 |tee $temp_dir/fiat_$fiat
+  curl -s -H 'user-agent: Mozilla' -H 'Accept-Language: en-US,en;q=0.9,it;q=0.8' "https://www.google.com/search?q=1+$fiat_currency+to+usd" |grep -oP "$fiat_currency = [0-9]+\\.[0-9]+ USD" |head -n1 |grep -oP "[0-9]+\\.[0-9]+" > $temp_dir/fiat_$fiat_currency
  fi
 }
 
@@ -202,6 +203,7 @@ fi
 
 if [ ${param} == "balance" ]; then
  rm -f $temp_dir/*
+ curl_fiat
  $(
  if echo -n $binance_key$binance_secret |wc -c |grep -Eq "^128$"; then
   binance_endpoint="sapi/v1/capital/config/getall"
@@ -226,7 +228,7 @@ if [ ${param} == "balance" ]; then
   usdt_available=$(echo "$available * $usdt_pair_price" |bc -l)
   usdt_locked=$(echo "$locked * $usdt_pair_price" |bc -l)
   usd_total=$(echo "$usdt_available + $usdt_locked" |bc -l)
-  brl_total=$(fiat="BRL"; echo "$usd_total * curl_fiat" |bc -l)
+  brl_total=$(echo "$usd_total * $(cat ${temp_dir}/fiat_${fiat_currency})" |bc -l)
   echo $symbol $amount $usdt_available $usdt_locked $usd_total $brl_total $last24hr >> $temp_dir/binance_final
   done
  fi &
@@ -255,7 +257,7 @@ if [ ${param} == "balance" ]; then
   usdt_available=$(echo "$available * $usdt_pair_price" |bc -l)
   usdt_locked=$(echo "$locked * $usdt_pair_price" |bc -l)
   usd_total=$(echo "$usdt_available + $usdt_locked" |bc -l)
-  brl_total=$(fiat="BRL"; echo "$usd_total * curl_fiat" |bc -l)
+  brl_total=$(echo "$usd_total * $(cat ${temp_dir}/fiat_${fiat_currency})" |bc -l)
   echo $symbol $amount $usdt_available $usdt_locked $usd_total $brl_total $last24hr >> $temp_dir/gateio_final
   done
  fi 
@@ -267,9 +269,11 @@ if [ ${param} == "balance" ]; then
  awk 'FNR==NR{s+=$5;next;} {print $0,100*$5/s"%"}' $temp_dir/total_final1 $temp_dir/total_final1 > $temp_dir/total_final2
  # Including footer with total sum of each column.
  awk '{for(i=2;i<=7;i++)a[i]+=$i;print $0} END{l="Total";i=2;while(i in a){l=l" "a[i];i++};print l" X"}' $temp_dir/total_final2 > $temp_dir/total_final3
+ tail -1 $temp_dir/total_final3 |awk '{print $1" x "$3" "$4" "$5" "$6" X "$8}' > $temp_dir/footer
+ sed -i '$ d' $temp_dir/total_final3
  # Including header
  sed -i '1i\Token Amount USD-free USD-locked USD-total BRL-total Last24hr Allocation' $temp_dir/total_final3
- cat $temp_dir/total_final3 |column -ts $' ' > $temp_dir/total_final4
+ cat $temp_dir/total_final3 $temp_dir/footer |column -ts $' ' > $temp_dir/total_final4
 
  #original_grep_colors=$GREP_COLORS
  export GREP_COLORS='ms=00;34'
