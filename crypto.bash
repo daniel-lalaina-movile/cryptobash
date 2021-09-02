@@ -13,31 +13,44 @@ binance_uri="api.binance.com"
 gateio_uri="api.gateio.ws"
 source $script_dir/.credentials
 
-fiat_currency="BRL"
+fiat_currency="BRL" # If your residential country is US, leave fiat_currency=""
 LC_NUMERIC="en_US.UTF-8"
 
 usage() {
   cat << EOF
-Usage: $script_name [-h] [-v] [-t] -p <order|balance|runaway> arg1 [arg2...]
+Usage: ./$script_name [-h] [-v] [-t] -p <order|balance|runaway> arg1 [arg2...]
 
 Available options:
 
 -h, --help      Print this help.
 -v, --verbose   Run with debug
 -t, --test      Use Binance test endpoint. (Works with "order" or "runaway" params)
--p, --param     [balance|order|runaway]
+-p, --param     Main action parameter
+		-p balance
+		-p order
+		Caution: When using a list of tokenpairs, it must be the same quote pair.
+		eX: -p order binance BUY ADAUSDT,ETHUSDT,BTCUSDT |runaway]
 -w, --web	Turn off progress bar. (To use with shell2http and display on web) (TODO: Explain how to use shell2http)
 
 Examples:
 
-Buy 50 USDT of ADAUSDT (Currently you can buy only XXX/USDT or XXX/BTC).
-$script_name -p order <exchange> <SIDE> <SYMBOL> <QUOTEQTY> (Ex: -p binace order BUY ADAUSDT 50)
+Buy 50 USDT of ADAUSDT
+./$script_name -p order binance BUY ADAUSDT 50
+./$script_name -p order gateio BUY ADAUSDT 50
+
+Buy 50 USDT of each ADA ETH BTC
+./$script_name -p order binance BUY ADAUSDT,ETHUSDT,BTCUSDT
+./$script_name -p order gateio BUY ADAUSDT,ETHUSDT,BTCUSDT
 
 Show your balance.
-$script_name -p balance
+./$script_name -p balance all
+./$script_name -p balance binance
+./$script_name -p balance gateio
 
-Sell every coin you have, at market price.
-$script_name -p runaway
+Sell every token that you have, at market price.
+./$script_name -p runaway binance
+./$script_name -p runaway gateio
+./$script_name -p runaway all
 
 EOF
 exit
@@ -92,15 +105,28 @@ parse_params() {
 
   args=("$@")
 
-  # check required params and arguments
-  if [[ "${param}" != @(order|balance|runaway) ]]; then die "Missing required parameter: -p <order|balance|runaway>"; fi
-  if [ ${param} == "order" ]; then
-   side=$(echo ${@-} |grep -oP "\b(SELL|BUY)\b" || die "SIDE argument is required for param order. Ex -p order SELL ADAUSDT 30")
-   symbol=$(echo ${@-} |grep -oP "\b[A-Z0-9]+(USDT|BTC)\b" || die "SYMBOL argument is required for param order. Examples\nTo SELL 30 USDT of ADA:\n-p order SELL ADAUSDT 30\nTo buy 30 USDT of each ADA,SOL,LUNA:\n-p order SELL ADAUSDT,SOLUSDT,LUNAUSDT 30")
-   qty=$(echo ${@-} |grep -oP "\b[0-9.]+\b" || die "QUOTEQTY argument (which is the amount you want to spend, not the ammount of coins you want to buy/sell) is required for param order. Ex -p order SELL ADAUSDT 30")
-   exchange=$(echo ${@-} |grep -oPi "(binance|gateio)" || die "Exchange argument is required for param order. Ex\n-p order binance SELL ADAUSDT 30\n-p order gateio SELL ADAUSDT 30\n -p order binance-gateio SELL ADAUSDT 30")
+  # Checking exchange keys
+
+  if echo ${@-} |grep -q "binance"; then
+   echo -n "$binance_key$binance_secret" |wc -c |grep -Eq "^128$|^0$" || die "Invalid binance_key/binance_secret, if you don't have account in this exchange, please leave both fields empty"
+  elif echo ${@-} |grep -q "gateio"; then
+  echo -n "$gateio_key$gateio_secret" |wc -c |grep -Eq "^96$|^0$" || die "Invalid gateio_key/gateio_secret, if you don't have account in this exchange, please leave both fields empty"
+  elif echo ${@-} |grep -q "all"; then
+  echo -n "$gateio_key$gateio_secret$binance_key$binance_secret" |wc -c |grep -Eq "^0$" && die "You must configure a pair of key/secret for at least one of the exchanges."
   fi
-  #[[ ${#args[@]} -ne 3 ]] && [ ${param} == "order" ] && die "Missing required arguments for param order, which are <quoteOrderQty> <symbol> <side>"
+
+  # Checking required params and arguments
+
+  if [[ "${param}" != @(order|balance|runaway) ]]; then die "Missing main parameter: -p <order|balance|runaway>"; fi
+  if [[ "${param}" == @(balance|runaway) ]]; then
+   exchange=$(echo ${@-} |grep -oPi "(binance|gateio|all)" || die "Exchange argument is required for param runaway.\nEx\n./$script_name -p runaway binance\n./$script_name -p runaway gateio\n./$script_name -p runaway all")
+  fi
+  if [ ${param} == "order" ]; then
+   side=$(echo ${@-} |grep -oP "\b(SELL|BUY)\b" || die "SIDE argument is required for param order.\nExamples:\n./$script_name -p order SELL ADAUSDT 30")
+   symbol=$(echo ${@-} |grep -oP "\b[A-Z0-9]+(USDT|BTC)\b" || die "SYMBOL argument is required for param order. Examples\nTo SELL 30 USDT of ADA:\n./$script_name -p order SELL ADAUSDT 30\nTo buy 30 USDT of each ADA,SOL,LUNA:\n./$script_name -p order SELL ADAUSDT,SOLUSDT,LUNAUSDT 30")
+   qty=$(echo ${@-} |grep -oP "\b[0-9.]+\b" || die "QUOTEQTY argument (which is the amount you want to spend, not the ammount of coins you want to buy/sell) is required for param order.\nExamples:\n/$script_name -p order SELL ADAUSDT 30")
+   exchange=$(echo ${@-} |grep -oPi "(binance|gateio)" || die "Exchange argument is required for param order.\nExamples:\n./$script_name -p order binance SELL ADAUSDT 30\n./$script_name -p order gateio SELL ADAUSDT 30\n -p order binance-gateio SELL ADAUSDT 30")
+  fi
 
   return 0
 }
@@ -182,7 +208,8 @@ curl_gateio_24hr() {
 }
 
 if [ ${param} == "runaway" ]; then
- if [ -z $test ]; then read -p "Are you sure? This will convert all your assets to USDT (y/n)" -n 1 -r; if [[ ! $REPLY =~ ^[Yy]$ ]]; then exit; fi; fi
+ if [[ $exchange =~ binance|all ]] ; then
+  if [ -z $test ]; then read -p "Are you sure? This will convert all your assets to USDT (y/n)" -n 1 -r; if [[ ! $REPLY =~ ^[Yy]$ ]]; then exit; fi; fi
   binance_endpoint="sapi/v1/capital/config/getall"
   timestamp=$(func_timestamp)
   binance_query_string="timestamp=$timestamp"
@@ -198,14 +225,19 @@ if [ ${param} == "runaway" ]; then
     binance_signature=$(echo -n "$binance_query_string" |openssl dgst -sha256 -hmac "$binance_secret" |awk '{print $2}') \
     curl_binance &
   done
+ fi
+ if [[ $exchange =~ gateio|all ]]; then
+  # TODO
+  echo "gateio order is not supported yet. I'm still thinking about it, cause they don't support orders at MARKET price :-("
+ fi
  exit
 fi
 
 if [ ${param} == "balance" ]; then
  rm -f $temp_dir/*
- curl_fiat
+ if [ ! -z $fiat_currency ]; then curl_fiat; fi
  $(
- if echo -n $binance_key$binance_secret |wc -c |grep -Eq "^128$"; then
+ if echo -n $binance_key$binance_secret |wc -c |grep -Eq "^128$" && [[ $exchange =~ binance|all ]]; then
   binance_endpoint="sapi/v1/capital/config/getall"
   timestamp=$(func_timestamp)
   binance_query_string="timestamp=$timestamp"
@@ -219,7 +251,7 @@ if [ ${param} == "balance" ]; then
    amount=$(echo "$available + $locked" | bc -l)
    if grep -q "^${symbol}USDT" $temp_dir/binance_24hr; then
     read usdt_pair_price last24hr <<<$(grep "^${symbol}USDT" $temp_dir/binance_24hr |awk '{print $2,$3}')
-   elif [ ${symbol} == "USDT" ]; then
+   elif [[ ${symbol} =~ USDT|BUSD|USDC ]]; then
     usdt_pair_price="1"
     last24hr="0"
    elif grep -q "^${symbol}BTC" $temp_dir/binance_24hr; then
@@ -235,7 +267,7 @@ if [ ${param} == "balance" ]; then
   echo $symbol $amount $usdt_available $usdt_locked $usd_total $brl_total $last24hr >> $temp_dir/binance_final
   done
  fi &
- if echo -n $gateio_key$gateio_secret |wc -c |grep -Eq "^96$"; then
+ if echo -n $gateio_key$gateio_secret |wc -c |grep -Eq "^96$" && [[ $exchange =~ gateio|all ]]; then
   gateio_query_string=""
   gateio_body=""
   gateio_endpoint="api/v4/spot/accounts"
@@ -251,7 +283,7 @@ if [ ${param} == "balance" ]; then
    amount=$(echo "$available + $locked" | bc -l)
    if grep -q "^${symbol}USDT" $temp_dir/gateio_24hr; then
     read usdt_pair_price last24hr <<<$(grep "^${symbol}USDT" $temp_dir/gateio_24hr |awk '{print $2,$3}')
-   elif [ ${symbol} == "USDT" ]; then
+   elif [[ ${symbol} =~ USDT|BUSD|USDC ]]; then
     usdt_pair_price="1"
     last24hr="0"
    elif grep -q "^${symbol}BTC" $temp_dir/gateio_24hr; then
@@ -297,7 +329,7 @@ if [ ${param} == "order" ]; then
 
  for symbol in `echo $symbol`; do
 
-  if echo $exchange |grep -q "binance"; then
+  if [ $exchange == "binance" ] ; then
    method="POST"
    binance_endpoint="api/v3/order$test"
    timestamp=$(func_timestamp)
@@ -306,7 +338,7 @@ if [ ${param} == "order" ]; then
    curl_binance
   fi
  
-  if echo $exchange |grep -q "gateio"; then
+  if [ $exchange == "gateio" ] ; then
    # TODO
    echo "gateio order is not supported yet. I'm still thinking about it, cause they don't support orders at MARKET price :-("
   fi
