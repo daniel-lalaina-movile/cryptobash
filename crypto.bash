@@ -161,7 +161,7 @@ curl_fiat() {
   #cache
   cat $temp_dir/fiat_$fiat_curency
  else
-  curl -s -H 'user-agent: Mozilla' -H 'Accept-Language: en-US,en;q=0.9,it;q=0.8' "https://www.google.com/search?q=1+$fiat_currency+to+usd" |grep -oP "$fiat_currency = [0-9]+\\.[0-9]+ USD" |head -n1 |grep -oP "[0-9]+\\.[0-9]+" > $temp_dir/fiat_$fiat_currency
+  curl -s -H 'user-agent: Mozilla' -H 'Accept-Language: en-US,en;q=0.9,it;q=0.8' "https://www.google.com/search?q=1+usd+to+$fiat_currency" |grep -oP "USD = [0-9]+\\.[0-9]+ $fiat_currency" |head -n1 |grep -oP "[0-9]+\\.[0-9]+" > $temp_dir/fiat_$fiat_currency
  fi
 }
 
