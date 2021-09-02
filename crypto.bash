@@ -327,6 +327,7 @@ if [ ${param} == "balance" ]; then
    echo -n "${exchange^}" >> $temp_dir/total_per_exchange
    awk '{usd+=$5;brl+=$6} END{print " "usd" "brl}' ${temp_dir}/${exchange}_final >> $temp_dir/total_per_exchange
   done
+  echo "Total$(tail -1 $temp_dir/total_final4 |awk -F '|' '{print $5" "$6}' |sed -E 's/\s+/ /g; s/\ +$//g')" >> $temp_dir/total_per_exchange
   cat $temp_dir/total_per_exchange |column -ts $' ' -o ' | ' |grep --color ".*"
  fi
 
