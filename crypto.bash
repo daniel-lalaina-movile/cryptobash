@@ -311,16 +311,24 @@ if [ ${param} == "balance" ]; then
  sed -i '$ d' $temp_dir/total_final3
  # Including header
  sed -i '1i\Token Amount USD-free USD-locked USD-total BRL-total Last24hr Allocation' $temp_dir/total_final3
- cat $temp_dir/total_final3 $temp_dir/footer |column -ts $' ' > $temp_dir/total_final4
+ cat $temp_dir/total_final3 $temp_dir/footer |column -ts $' ' -o ' | ' > $temp_dir/total_final4
 
- #original_grep_colors=$GREP_COLORS
  export GREP_COLORS='ms=00;34'
  grep --color 'Token.*' $temp_dir/total_final4
  export GREP_COLORS='ms=00;31'
  grep -E --color '.*\-[0-9\.]+%[^$].*' $temp_dir/total_final4
  export GREP_COLORS='ms=00;34'
  grep -Ev '.*\-[0-9\.]+%[^$].*' $temp_dir/total_final4 |grep -v Token |grep --color ".*"
- #GREP_COLORS=$original_grep_colors
+
+ if [ $exchange == "all" ] ; then
+  echo ""
+  echo "Exchange USD BRL" > $temp_dir/total_per_exchange
+  for exchange in `ls -1 ${temp_dir}/*_final |sed -E 's/(^.*\/|_final)//g'`; do
+   echo -n "${exchange^}" >> $temp_dir/total_per_exchange
+   awk '{usd+=$5;brl+=$6} END{print " "usd" "brl}' ${temp_dir}/${exchange}_final >> $temp_dir/total_per_exchange
+  done
+  cat $temp_dir/total_per_exchange |column -ts $' ' -o ' | ' |grep --color ".*"
+ fi
 
  exit
 fi
