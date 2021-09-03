@@ -21,7 +21,7 @@
 
 ## Current capabilities
 
-- Show your balance (Binance ✔️ / Gate.io ✔️)
+- Show your detailed balance in USDT and your fiat currency (Binance ✔️ / Gate.io ✔️)
 - Sell every token asap at market price (Binance ✔️ / Gate.io ❌)
 - Make basic orders on specific or multiple tokens at market price (Binance ✔️ / Gate.io ❌)
 
