@@ -329,9 +329,9 @@ if [ ${param} == "balance" ]; then
  if [ $exchange == "all" ] ; then
   echo ""
   echo "Exchange USDT BTC $residential_country_currency" > $tdir/total_per_exchange
-  for exchange in `ls -1 ${temp_dir}/*_final |sed -E 's/(^.*\/|_final)//g'`; do
+  for exchange in `ls -1 ${tdir}/*_final |sed -E 's/(^.*\/|_final)//g'`; do
    echo -n "${exchange^}" >> $tdir/total_per_exchange
-   awk '{usdt+=$5;btc+=$6;rcc+=$7} END{print " "usdt" "btc" "rcc}' ${temp_dir}/${exchange}_final >> $tdir/total_per_exchange
+   awk '{usdt+=$5;btc+=$6;rcc+=$7} END{print " "usdt" "btc" "rcc}' ${tdir}/${exchange}_final >> $tdir/total_per_exchange
   done
   echo "Total $(tail -1 $tdir/total_final4 |awk -F'[| ]+' '{print $5" "$6" "$7}')" >> $tdir/total_per_exchange
   cat $tdir/total_per_exchange |column -t $(man column |grep -q "\o" && printf '%s' -o ' | ') |sed 's/|/ | /g' |grep --color ".*"
