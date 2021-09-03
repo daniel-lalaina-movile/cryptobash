@@ -2,8 +2,8 @@
 
 # https://github.com/daniel-lalaina-movile/cryptobash
 
-set -Eeuo pipefail
-trap cleanup SIGINT SIGTERM ERR EXIT
+#set -Eeuo pipefail
+#trap cleanup SIGINT SIGTERM ERR EXIT
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)
 script_name=$(basename "${BASH_SOURCE[0]}")
@@ -183,12 +183,7 @@ func_timestamp() {
 }
 
 curl_usd() {
- if [ -f $temp_dir/fiat_usd_rate ]; then
-  #cache
-  tail -1 $temp_dir/fiat_usd_rate
- else
-  curl -s -H 'user-agent: Mozilla' -H 'Accept-Language: en-US,en;q=0.9,it;q=0.8' "https://www.google.com/search?q=1+usd+to+$residential_country_currency" |grep -oP "USD = [0-9]+\\.[0-9]+ $residential_country_currency" |head -n1 |grep -oP "[0-9]+\\.[0-9]+" |tee $temp_dir/fiat_usd_rate
-  fi
+  fiat_usd_rate="$(curl -s -H 'user-agent: Mozilla' -H 'Accept-Language: en-US,en;q=0.9,it;q=0.8' "https://www.google.com/search?q=1+usd+to+$residential_country_currency" |grep -oP "USD = [0-9]+\\.[0-9]+ $residential_country_currency" |head -n1 |grep -oP "[0-9]+\\.[0-9]+" |tr -d '\n')"
 }
 
 curl_binance() {
@@ -237,6 +232,7 @@ if [ ${param} == "balance" ]; then
  rm -f $temp_dir/*
  usdtusd=$(curl -s 'https://api.gateio.ws/api/v4/spot/tickers?currency_pair=USDT_USD' |jq -r .[].last |grep -E "[0-9]+\.[0-9]+" || echo "1")
  $(
+ if [ $residential_country_currency == "USD" ]; then fiat_usd_rate="1"; else curl_usd; fi
  if echo -n $binance_key$binance_secret |wc -c |grep -Eq "^128$" && [[ $exchange =~ binance|all ]]; then
   binance_endpoint="sapi/v1/capital/config/getall"
   timestamp=$(func_timestamp)
@@ -246,13 +242,12 @@ if [ ${param} == "balance" ]; then
   curl_binance_24hr |jq '.[] | {symbol: .symbol, price: .lastPrice, last24hr: .priceChangePercent|tonumber} | select(.price!="0.00000000" and .price!="0.00" and .price!="0") | to_entries[] | .value' |paste - - - > $temp_dir/binance_24hr
   sed -i 's/"//g' $temp_dir/binance_24hr $temp_dir/binance_balance
   btcusdt=$(grep -E "^BTCUSDT\b" $temp_dir/binance_24hr |awk '{print $2}')
-  #echo -e "symbol\tammount\tusdt_available\tusdt_locked\tusdt_total\tlast24hr" > temp/binance_final
   cat $temp_dir/binance_balance |while read symbol available locked; do
    amount=$(echo "$available + $locked" | bc -l)
    if grep -q "^${symbol}USDT" $temp_dir/binance_24hr; then
     read usdt_pair_price last24hr <<<$(grep "^${symbol}USDT" $temp_dir/binance_24hr |awk '{print $2,$3}')
    elif [[ ${symbol} =~ USDT|BUSD|USDC ]]; then
-    usdt_pair_price=$usdtusd
+    usdt_pair_price="1"
     last24hr="0"
    elif grep -Eq "^${symbol}BTC\b" $temp_dir/binance_24hr; then
     read btc_pair_price last24hr <<<$(grep "^${symbol}BTC" $temp_dir/binance_24hr |awk '{print $2,$3}')
@@ -266,7 +261,7 @@ if [ ${param} == "balance" ]; then
    if [ $residential_country_currency == "USD" ]; then
     fiat_total=$(echo "$usdt_total * $usdtusd" |bc -l)
    else
-    fiat_total=$(echo "$usdt_total * $usdtusd * $(curl_usd)" |bc -l)
+    fiat_total=$(echo "$usdt_total * $usdtusd * $fiat_usd_rate" |bc -l)
    fi
    btc_total=$(echo "$usdt_total / $btcusdt" |bc -l)
    echo $symbol $amount $usdt_available $usdt_locked $usdt_total $btc_total $fiat_total $last24hr >> $temp_dir/binance_final
@@ -289,7 +284,7 @@ if [ ${param} == "balance" ]; then
    if grep -q "^${symbol}USDT" $temp_dir/gateio_24hr; then
     read usdt_pair_price last24hr <<<$(grep "^${symbol}USDT" $temp_dir/gateio_24hr |awk '{print $2,$3}')
    elif [[ ${symbol} =~ USDT|BUSD|USDC ]]; then
-    usdt_pair_price=$usdtusd
+    usdt_pair_price="1"
     last24hr="0"
    elif grep -Eq "^${symbol}BTC\b" $temp_dir/gateio_24hr; then
     read btc_pair_price last24hr <<<$(grep "^${symbol}BTC" $temp_dir/gateio_24hr |awk '{print $2,$3}')
@@ -303,7 +298,7 @@ if [ ${param} == "balance" ]; then
    if [ $residential_country_currency == "USD" ]; then
     fiat_total=$(echo "$usdt_total * $usdtusd" |bc -l)
    else
-    fiat_total=$(echo "$usdt_total * $usdtusd * $(curl_usd)" |bc -l)
+    fiat_total=$(echo "$usdt_total * $usdtusd * $fiat_usd_rate" |bc -l)
    fi
    btc_total=$(echo "$usdt_total / $btcusdt" |bc -l)
    echo $symbol $amount $usdt_available $usdt_locked $usdt_total $btc_total $fiat_total $last24hr >> $temp_dir/gateio_final
@@ -322,7 +317,7 @@ if [ ${param} == "balance" ]; then
  sed -i '$ d' $temp_dir/total_final3
  # Including header
  sed -i '1i\Token Amount USDT-free USDT-locked in-USDT in-BTC in-'$residential_country_currency' Last24hr Allocation' $temp_dir/total_final3
- cat $temp_dir/total_final3 $temp_dir/footer |column -ts $' ' -o ' | ' > $temp_dir/total_final4
+ cat $temp_dir/total_final3 $temp_dir/footer |column -t $(man column |grep -q "\o" && printf '%s' -o ' | ') |sed 's/|/ | /g' > $temp_dir/total_final4
 
  export GREP_COLORS='ms=00;34'
  grep --color 'Token.*' $temp_dir/total_final4
@@ -338,8 +333,8 @@ if [ ${param} == "balance" ]; then
    echo -n "${exchange^}" >> $temp_dir/total_per_exchange
    awk '{usdt+=$5;btc+=$6;rcc+=$7} END{print " "usdt" "btc" "rcc}' ${temp_dir}/${exchange}_final >> $temp_dir/total_per_exchange
   done
-  echo "Total$(tail -1 $temp_dir/total_final4 |awk -F '|' '{print $5" "$6" "$7}' |sed -E 's/\s+/ /g; s/\ +$//g')" >> $temp_dir/total_per_exchange
-  cat $temp_dir/total_per_exchange |column -ts $' ' -o ' | ' |grep --color ".*"
+  echo "Total $(tail -1 $temp_dir/total_final4 |awk -F'[| ]+' '{print $5" "$6" "$7}')" >> $temp_dir/total_per_exchange
+  cat $temp_dir/total_per_exchange |column -t $(man column |grep -q "\o" && printf '%s' -o ' | ') |sed 's/|/ | /g' |grep --color ".*"
  fi
 
  exit
