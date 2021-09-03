@@ -183,8 +183,11 @@ func_timestamp() {
 }
 
 curl_usd() {
-  if [ $residential_country_currency == "USD" ]; then echo 1; else
-  curl -s -H 'user-agent: Mozilla' -H 'Accept-Language: en-US,en;q=0.9,it;q=0.8' "https://www.google.com/search?q=1+usd+to+$residential_country_currency" |grep -oP "USD = [0-9]+\\.[0-9]+ $residential_country_currency" |head -n1 |grep -oP "[0-9]+\\.[0-9]+"
+ if [ -f $temp_dir/fiat_usd_rate ]; then
+  #cache
+  tail -1 $temp_dir/fiat_usd_rate
+ else
+  curl -s -H 'user-agent: Mozilla' -H 'Accept-Language: en-US,en;q=0.9,it;q=0.8' "https://www.google.com/search?q=1+usd+to+$residential_country_currency" |grep -oP "USD = [0-9]+\\.[0-9]+ $residential_country_currency" |head -n1 |grep -oP "[0-9]+\\.[0-9]+" |tee $temp_dir/fiat_usd_rate
   fi
 }
 
@@ -232,7 +235,6 @@ fi
 
 if [ ${param} == "balance" ]; then
  rm -f $temp_dir/*
- #if [ ! -z $residential_country_currency ]; then curl_usd; fi
  usdtusd=$(curl -s 'https://api.gateio.ws/api/v4/spot/tickers?currency_pair=USDT_USD' |jq -r .[].last |grep -E "[0-9]+\.[0-9]+" || echo "1")
  $(
  if echo -n $binance_key$binance_secret |wc -c |grep -Eq "^128$" && [[ $exchange =~ binance|all ]]; then
@@ -243,7 +245,7 @@ if [ ${param} == "balance" ]; then
   curl_binance |jq ' .[] | {symbol: .coin, available: .free, locked: .locked} | select(.available!="0" or .locked!="0") | to_entries[] | .value' |paste - - - > $temp_dir/binance_balance
   curl_binance_24hr |jq '.[] | {symbol: .symbol, price: .lastPrice, last24hr: .priceChangePercent|tonumber} | select(.price!="0.00000000" and .price!="0.00" and .price!="0") | to_entries[] | .value' |paste - - - > $temp_dir/binance_24hr
   sed -i 's/"//g' $temp_dir/binance_24hr $temp_dir/binance_balance
-  btcusdt=$(grep BTCUSDT $temp_dir/binance_24hr |awk '{print $2}')
+  btcusdt=$(grep -E "^BTCUSDT\b" $temp_dir/binance_24hr |awk '{print $2}')
   #echo -e "symbol\tammount\tusdt_available\tusdt_locked\tusdt_total\tlast24hr" > temp/binance_final
   cat $temp_dir/binance_balance |while read symbol available locked; do
    amount=$(echo "$available + $locked" | bc -l)
@@ -252,7 +254,7 @@ if [ ${param} == "balance" ]; then
    elif [[ ${symbol} =~ USDT|BUSD|USDC ]]; then
     usdt_pair_price=$usdtusd
     last24hr="0"
-   elif grep -q "^${symbol}BTC" $temp_dir/binance_24hr; then
+   elif grep -Eq "^${symbol}BTC\b" $temp_dir/binance_24hr; then
     read btc_pair_price last24hr <<<$(grep "^${symbol}BTC" $temp_dir/binance_24hr |awk '{print $2,$3}')
     usdt_pair_price=$(echo "$btc_pair_price * ${btcusdt}" |bc -l)
    #else
@@ -261,12 +263,13 @@ if [ ${param} == "balance" ]; then
    usdt_available=$(echo "$available * $usdt_pair_price" |bc -l)
    usdt_locked=$(echo "$locked * $usdt_pair_price" |bc -l)
    usdt_total=$(echo "$usdt_available + $usdt_locked" |bc -l)
-   if [ $residential_country_currency == "USDT" ]; then
+   if [ $residential_country_currency == "USD" ]; then
     fiat_total=$(echo "$usdt_total * $usdtusd" |bc -l)
    else
     fiat_total=$(echo "$usdt_total * $usdtusd * $(curl_usd)" |bc -l)
    fi
-   echo $symbol $amount $usdt_available $usdt_locked $usdt_total $fiat_total $last24hr >> $temp_dir/binance_final
+   btc_total=$(echo "$usdt_total / $btcusdt" |bc -l)
+   echo $symbol $amount $usdt_available $usdt_locked $usdt_total $btc_total $fiat_total $last24hr >> $temp_dir/binance_final
   done
  fi &
  if echo -n $gateio_key$gateio_secret |wc -c |grep -Eq "^96$" && [[ $exchange =~ gateio|all ]]; then
@@ -280,7 +283,7 @@ if [ ${param} == "balance" ]; then
   curl_gateio |jq ' .[] | {symbol: .currency, available: .available, locked: .locked} | select(.available!="0" or .locked!="0") | to_entries[] | .value' |paste - - - > $temp_dir/gateio_balance
   curl_gateio_24hr |jq '.[] | {symbol: .currency_pair, price: .last, last24hr: .change_percentage|tonumber} | select(.price!="0.00000000" and .price!="0.00" and .price!="0") | to_entries[] | .value' |sed 's/_//g' |paste - - - > $temp_dir/gateio_24hr
   sed -i 's/"//g' $temp_dir/gateio_24hr $temp_dir/gateio_balance
-  btcusdt=$(grep BTCUSDT $temp_dir/gateio_24hr |awk '{print $2}')
+  btcusdt=$(grep -E "^BTCUSDT\b" $temp_dir/gateio_24hr |awk '{print $2}')
   cat $temp_dir/gateio_balance |while read symbol available locked; do
    amount=$(echo "$available + $locked" | bc -l)
    if grep -q "^${symbol}USDT" $temp_dir/gateio_24hr; then
@@ -288,7 +291,7 @@ if [ ${param} == "balance" ]; then
    elif [[ ${symbol} =~ USDT|BUSD|USDC ]]; then
     usdt_pair_price=$usdtusd
     last24hr="0"
-   elif grep -q "^${symbol}BTC" $temp_dir/gateio_24hr; then
+   elif grep -Eq "^${symbol}BTC\b" $temp_dir/gateio_24hr; then
     read btc_pair_price last24hr <<<$(grep "^${symbol}BTC" $temp_dir/gateio_24hr |awk '{print $2,$3}')
     usdt_pair_price=$(echo "$btc_pair_price * ${btcusdt}" |bc -l)
   #else
@@ -297,26 +300,28 @@ if [ ${param} == "balance" ]; then
    usdt_available=$(echo "$available * $usdt_pair_price" |bc -l)
    usdt_locked=$(echo "$locked * $usdt_pair_price" |bc -l)
    usdt_total=$(echo "$usdt_available + $usdt_locked" |bc -l)
-   if [ $residential_country_currency == "USDT" ]; then
+   if [ $residential_country_currency == "USD" ]; then
     fiat_total=$(echo "$usdt_total * $usdtusd" |bc -l)
    else
     fiat_total=$(echo "$usdt_total * $usdtusd * $(curl_usd)" |bc -l)
    fi
-   echo $symbol $amount $usdt_available $usdt_locked $usdt_total $fiat_total $last24hr >> $temp_dir/gateio_final
+   btc_total=$(echo "$usdt_total / $btcusdt" |bc -l)
+   echo $symbol $amount $usdt_available $usdt_locked $usdt_total $btc_total $fiat_total $last24hr >> $temp_dir/gateio_final
   done
  fi 
  ) &
+
  if [ $web == "false" ]; then progress_bar; else wait; fi
  # Unifying and summing up the amounts of same assets from multiple exchanges.
- awk '{a[$1]+=$2;b[$1]+=$3;c[$1]+=$4;d[$1]+=$5;e[$1]+=$6;f[$1]+=$7}END{for(i in a)print i, a[i], b[i], c[i], d[i], e[i], f[i]/2"%"}' $temp_dir/*_final > $temp_dir/total_final1
+ awk '{a[$1]+=$2;b[$1]+=$3;c[$1]+=$4;d[$1]+=$5;e[$1]+=$6;f[$1]+=$7;g[$1]+=$8}END{for(i in a)print i, a[i], b[i], c[i], d[i], e[i], f[i], g[i]/2"%"}' $temp_dir/*_final > $temp_dir/total_final1
  # Including percentage allocation column.
  awk 'FNR==NR{s+=$5;next;} {print $0,100*$5/s"%"}' $temp_dir/total_final1 $temp_dir/total_final1 > $temp_dir/total_final2
  # Including footer with total sum of each column.
- awk '{for(i=2;i<=7;i++)a[i]+=$i;print $0} END{l="Total";i=2;while(i in a){l=l" "a[i];i++};print l" X"}' $temp_dir/total_final2 > $temp_dir/total_final3
- tail -1 $temp_dir/total_final3 |awk '{print $1" x "$3" "$4" "$5" "$6" X "$8}' > $temp_dir/footer
+ awk '{for(i=2;i<=8;i++)a[i]+=$i;print $0} END{l="Total";i=2;while(i in a){l=l" "a[i];i++};print l" X"}' $temp_dir/total_final2 > $temp_dir/total_final3
+ tail -1 $temp_dir/total_final3 |awk '{print $1" X "$3" "$4" "$5" "$6" "$7" X "$9}' > $temp_dir/footer
  sed -i '$ d' $temp_dir/total_final3
  # Including header
- sed -i '1i\Token Amount USDT-free USDT-locked USDT-total '$residential_country_currency'-total Last24hr Allocation' $temp_dir/total_final3
+ sed -i '1i\Token Amount USDT-free USDT-locked in-USDT in-BTC in-'$residential_country_currency' Last24hr Allocation' $temp_dir/total_final3
  cat $temp_dir/total_final3 $temp_dir/footer |column -ts $' ' -o ' | ' > $temp_dir/total_final4
 
  export GREP_COLORS='ms=00;34'
@@ -328,12 +333,12 @@ if [ ${param} == "balance" ]; then
 
  if [ $exchange == "all" ] ; then
   echo ""
-  echo "Exchange USD $residential_country_currency" > $temp_dir/total_per_exchange
+  echo "Exchange USDT BTC $residential_country_currency" > $temp_dir/total_per_exchange
   for exchange in `ls -1 ${temp_dir}/*_final |sed -E 's/(^.*\/|_final)//g'`; do
    echo -n "${exchange^}" >> $temp_dir/total_per_exchange
-   awk '{usd+=$5;rcc+=$6} END{print " "usd" "rcc}' ${temp_dir}/${exchange}_final >> $temp_dir/total_per_exchange
+   awk '{usdt+=$5;btc+=$6;rcc+=$7} END{print " "usdt" "btc" "rcc}' ${temp_dir}/${exchange}_final >> $temp_dir/total_per_exchange
   done
-  echo "Total$(tail -1 $temp_dir/total_final4 |awk -F '|' '{print $5" "$6}' |sed -E 's/\s+/ /g; s/\ +$//g')" >> $temp_dir/total_per_exchange
+  echo "Total$(tail -1 $temp_dir/total_final4 |awk -F '|' '{print $5" "$6" "$7}' |sed -E 's/\s+/ /g; s/\ +$//g')" >> $temp_dir/total_per_exchange
   cat $temp_dir/total_per_exchange |column -ts $' ' -o ' | ' |grep --color ".*"
  fi
 
