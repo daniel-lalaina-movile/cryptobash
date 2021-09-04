@@ -224,6 +224,7 @@ fi
 if [ ${param} == "balance" ]; then
  rm -f $tdir/*
  curl -s -m3 'https://api.gateio.ws/api/v4/spot/tickers?currency_pair=USDT_USD' |jq -r .[].last |grep -E "[0-9]+\.[0-9]+" > $tdir/usdtusd || echo "1" > $tdir/usdtusd &
+ fiat_deposits=$(awk '{dep+=$1}END{print dep}' $script_dir/.fiat_deposits 2>/dev/null &)
  $(
  if [ $residential_country_currency == "USD" ]; then fiat_usd_rate="1"; else curl_usd; fi
  if echo -n $binance_key$binance_secret |wc -c |grep -Eq "^128$" && [[ $exchange =~ binance|all ]]; then
@@ -314,20 +315,25 @@ if [ ${param} == "balance" ]; then
  sed -i '$ d' $tdir/total_final3
  # Including header
  sed -i '1i\Token Amount USDT-free USDT-locked in-USDT in-BTC in-'$residential_country_currency' Last24hr Allocation' $tdir/total_final3
- # Fixing column version compatibility, coloring, and printing
+ # Fixing column versions compatibility due to -o, coloring, and printing
  msg "$(cat $tdir/total_final3 $tdir/footer |column -t $(man column |grep -q "\o" && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\'${BLUE}'/g; s/ (-[0-9\.]+%)/ \'${RED}'\1\'${BLUE}'/g' |tee $tdir/total_final4)"
- #cat $tdir/total_final3 $tdir/footer |column -t $(man column |grep -q "\o" && printf '%s' -o ' | ') |sed 's/|/ | /g' > $tdir/total_final4
- #awk -F '[| ]+' '{gsub(/^/,"'${BLUE}'";gsub(/(-[0-9\.]+%)/,"'${RED}'"\1"'${BLUE}'",$0);print}' $tdir/total_final5
 
  if [ $exchange == "all" ] ; then
   echo ""
-  echo "Exchange USDT BTC $residential_country_currency" > $tdir/total_per_exchange
+  echo -e "Exchange USDT BTC $residential_country_currency" > $tdir/total_per_exchange
   for exchange in `ls -1 ${tdir}/*_final |sed -E 's/(^.*\/|_final)//g'`; do
    echo -n "${exchange^}" >> $tdir/total_per_exchange
    awk '{usdt+=$5;btc+=$6;rcc+=$7} END{print " "usdt" "btc" "rcc}' ${tdir}/${exchange}_final >> $tdir/total_per_exchange
   done
   echo "Total $(tail -1 $tdir/total_final4 |awk -F'[| ]+' '{print $5" "$6" "$7}')" >> $tdir/total_per_exchange
   msg "${BLUE}$(cat $tdir/total_per_exchange |column -t $(man column |grep -q "\o" && printf '%s' -o ' | ') |sed 's/|/ | /g' |grep --color ".*")${NOFORMAT}"
+ fi
+ if [ ! -z $fiat_deposits ]; then
+  echo ""
+  echo ">>>> Percentage $residential_country_currency" > $tdir/total_result
+  current_total=$(tail -1 $tdir/total_per_exchange |awk -F'[| ]+' '{print $4}')
+  echo "Return $(echo "scale=2;100 * $current_total / $fiat_deposits - 100" |bc -l)% $(echo "$current_total - $fiat_deposits" |bc -l)" >> $tdir/total_result
+  msg "$(cat $tdir/total_result |column -t $(man column |grep -q "\o" && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\'${BLUE}'/g; s/ (-[0-9\.]+%)/ \'${RED}'\1\'${BLUE}'/g')${NOFORMAT}"
  fi
  exit
 fi
