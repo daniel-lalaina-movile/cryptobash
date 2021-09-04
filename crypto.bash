@@ -318,7 +318,7 @@ if [ ${param} == "balance" ]; then
  # Fixing column versions compatibility due to -o, coloring, and printing
  msg "$(cat $tdir/total_final3 $tdir/footer |column -t $(man column |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\'${BLUE}'/g; s/ (-[0-9\.]+%)/ \'${RED}'\1\'${BLUE}'/g' |tee $tdir/total_final4)"
 
- if [ $exchange == "all" ] ; then
+ if [[ $exchange == "all" ]] ; then
   echo ""
   echo -e "Exchange USDT BTC $residential_country_currency" > $tdir/total_per_exchange
   for exchange in `ls -1 ${tdir}/*_final |sed -E 's/(^.*\/|_final)//g'`; do
