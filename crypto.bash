@@ -6,7 +6,7 @@
 #trap cleanup SIGINT SIGTERM ERR EXIT
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)
-script_name=$(basename "${BASH_SOURCE[0]}")
+script_name="./$(basename "${BASH_SOURCE[0]}")"
 tdir=$script_dir/temp
 
 binance_uri="api.binance.com"
@@ -17,8 +17,8 @@ residential_country_currency="BRL"
 LC_NUMERIC="en_US.UTF-8"
 
 usage() {
-  cat << EOF
-Usage: ./$script_name [-h] [-v] [-t] -p <order|balance|runaway> arg1 [arg2...]
+ cat << EOF
+Usage: ${script_name} [-h] [-v] [-t] -p <order|balance|runaway> arg1 [arg2...]
 
 Available options:
 
@@ -29,28 +29,28 @@ Available options:
 		-p balance
 		-p order
 		Caution: When using a list of tokenpairs, it must be the same quote pair.
-		eX: -p order binance BUY ADAUSDT,ETHUSDT,BTCUSDT |runaway]
+		EX: -p order binance BUY ADAUSDT,ETHUSDT,BTCUSDT |runaway]
 -w, --web	Turn off progress bar. (To use with shell2http and display on web) (TODO: Explain how to use shell2http)
 
 Examples:
 
 Buy 50 USDT of ADAUSDT
-./$script_name -p order binance BUY ADAUSDT 50
-./$script_name -p order gateio BUY ADAUSDT 50
+$script_name -p order binance BUY ADAUSDT 50
+$script_name -p order gateio BUY ADAUSDT 50
 
 Buy 50 USDT of each ADA ETH BTC
-./$script_name -p order binance BUY ADAUSDT,ETHUSDT,BTCUSDT
-./$script_name -p order gateio BUY ADAUSDT,ETHUSDT,BTCUSDT
+$script_name -p order binance BUY ADAUSDT,ETHUSDT,BTCUSDT
+$script_name -p order gateio BUY ADAUSDT,ETHUSDT,BTCUSDT
 
 Show your balance.
-./$script_name -p balance all
-./$script_name -p balance binance
-./$script_name -p balance gateio
+$script_name -p balance all
+$script_name -p balance binance
+$script_name -p balance gateio
 
 Sell every token that you have, at market price.
-./$script_name -p runaway binance
-./$script_name -p runaway gateio
-./$script_name -p runaway all
+$script_name -p runaway binance
+$script_name -p runaway gateio
+$script_name -p runaway all
 
 EOF
 exit
@@ -88,6 +88,9 @@ parse_params() {
 
   while :; do
     case "${1-}" in
+    --docker)
+      script_name="docker run cryptobash"
+      web="true";;
     -h | --help) usage ;;
     -v | --verbose) set -x ;;
     --no-color) NO_COLOR=1 ;;
@@ -119,13 +122,13 @@ parse_params() {
 
   if [[ "${param}" != @(order|balance|runaway) ]]; then die "Missing main parameter: -p <order|balance|runaway>"; fi
   if [[ "${param}" == @(balance|runaway) ]]; then
-   exchange=$(echo ${@-} |grep -oPi "(binance|gateio|all)" || die "Exchange argument is required for param runaway.\nEx\n./$script_name -p runaway binance\n./$script_name -p runaway gateio\n./$script_name -p runaway all")
+   exchange=$(echo ${@-} |grep -oPi "(binance|gateio|all)" || die "Exchange argument is required for param runaway.\nEx\n${script_name} -p runaway binance\n${script_name} -p runaway gateio\n${script_name} -p runaway all")
   fi
   if [ ${param} == "order" ]; then
-   side=$(echo ${@-} |grep -oP "\b(SELL|BUY)\b" || die "SIDE argument is required for param order.\nExamples:\n./$script_name -p order SELL ADAUSDT 30")
-   symbol=$(echo ${@-} |grep -oP "\b[A-Z0-9]+(USDT|BTC)\b" || die "SYMBOL argument is required for param order. Examples\nTo SELL 30 USDT of ADA:\n./$script_name -p order SELL ADAUSDT 30\nTo buy 30 USDT of each ADA,SOL,LUNA:\n./$script_name -p order SELL ADAUSDT,SOLUSDT,LUNAUSDT 30")
+   side=$(echo ${@-} |grep -oP "\b(SELL|BUY)\b" || die "SIDE argument is required for param order.\nExamples:\n${script_name} -p order SELL ADAUSDT 30")
+   symbol=$(echo ${@-} |grep -oP "\b[A-Z0-9]+(USDT|BTC)\b" || die "SYMBOL argument is required for param order. Examples\nTo SELL 30 USDT of ADA:\n${script_name} -p order SELL ADAUSDT 30\nTo buy 30 USDT of each ADA,SOL,LUNA:\n${script_name} -p order SELL ADAUSDT,SOLUSDT,LUNAUSDT 30")
    qty=$(echo ${@-} |grep -oP "\b[0-9.]+\b" || die "QUOTEQTY argument (which is the amount you want to spend, not the ammount of coins you want to buy/sell) is required for param order.\nExamples:\n/$script_name -p order SELL ADAUSDT 30")
-   exchange=$(echo ${@-} |grep -oPi "(binance|gateio)" || die "Exchange argument is required for param order.\nExamples:\n./$script_name -p order binance SELL ADAUSDT 30\n./$script_name -p order gateio SELL ADAUSDT 30\n -p order binance-gateio SELL ADAUSDT 30")
+   exchange=$(echo ${@-} |grep -oPi "(binance|gateio)" || die "Exchange argument is required for param order.\nExamples:\n${script_name} -p order binance SELL ADAUSDT 30\n${script_name} -p order gateio SELL ADAUSDT 30\n -p order binance-gateio SELL ADAUSDT 30")
   fi
 
   return 0
