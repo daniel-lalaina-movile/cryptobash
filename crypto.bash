@@ -136,20 +136,13 @@ setup_colors
 
 banner() {
 tput clear
-msg "${RED}
-██████╗ ██╗      ██████╗  ██████╗██╗  ██╗ ██████╗██╗  ██╗ █████╗ ██╗███╗   ██╗
-██╔══██╗██║     ██╔═══██╗██╔════╝██║ ██╔╝██╔════╝██║  ██║██╔══██╗██║████╗  ██║
-██████╔╝██║     ██║   ██║██║     █████╔╝ ██║     ███████║███████║██║██╔██╗ ██║
-██╔══██╗██║     ██║   ██║██║     ██╔═██╗ ██║     ██╔══██║██╔══██║██║██║╚██╗██║
-██████╔╝███████╗╚██████╔╝╚██████╗██║  ██╗╚██████╗██║  ██║██║  ██║██║██║ ╚████║
-╚═════╝ ╚══════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝
-                                                                              
-            ██████╗  ██████╗  ██████╗██╗  ██╗███████╗                         
-            ██╔══██╗██╔═══██╗██╔════╝██║ ██╔╝██╔════╝                         
-            ██████╔╝██║   ██║██║     █████╔╝ ███████╗                         
-            ██╔══██╗██║   ██║██║     ██╔═██╗ ╚════██║                         
-            ██║  ██║╚██████╔╝╚██████╗██║  ██╗███████║                         
-            ╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝                         
+msg "${GREEN}
+██████╗ ██╗      ██████╗  ██████╗██╗  ██╗ ██████╗██╗  ██╗ █████╗ ██╗███╗   ██╗    ██████╗  ██████╗  ██████╗██╗  ██╗███████╗
+██╔══██╗██║     ██╔═══██╗██╔════╝██║ ██╔╝██╔════╝██║  ██║██╔══██╗██║████╗  ██║    ██╔══██╗██╔═══██╗██╔════╝██║ ██╔╝██╔════╝
+██████╔╝██║     ██║   ██║██║     █████╔╝ ██║     ███████║███████║██║██╔██╗ ██║    ██████╔╝██║   ██║██║     █████╔╝ ███████╗
+██╔══██╗██║     ██║   ██║██║     ██╔═██╗ ██║     ██╔══██║██╔══██║██║██║╚██╗██║    ██╔══██╗██║   ██║██║     ██╔═██╗ ╚════██║
+██████╔╝███████╗╚██████╔╝╚██████╗██║  ██╗╚██████╗██║  ██║██║  ██║██║██║ ╚████║    ██║  ██║╚██████╔╝╚██████╗██║  ██╗███████║
+╚═════╝ ╚══════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝    ╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝
 ${NOFORMAT}"
 }
 banner
@@ -173,7 +166,7 @@ progress_bar() {
    sleep 0.4
    if [ $i == $c ]; then break; fi
   done
- printf "[";printf '%0.s$' $(seq 1 $(($(tput cols)-3)));printf "]"
+  printf "[";printf '%0.s$' $(seq 1 $(($(tput cols)-3)));printf "]"
  echo
  done
 }
@@ -230,7 +223,7 @@ fi
 
 if [ ${param} == "balance" ]; then
  rm -f $tdir/*
- usdtusd=$(curl -s 'https://api.gateio.ws/api/v4/spot/tickers?currency_pair=USDT_USD' |jq -r .[].last |grep -E "[0-9]+\.[0-9]+" || echo "1")
+ curl -s -m3 'https://api.gateio.ws/api/v4/spot/tickers?currency_pair=USDT_USD' |jq -r .[].last |grep -E "[0-9]+\.[0-9]+" > $tdir/usdtusd || echo "1" > $tdir/usdtusd &
  $(
  if [ $residential_country_currency == "USD" ]; then fiat_usd_rate="1"; else curl_usd; fi
  if echo -n $binance_key$binance_secret |wc -c |grep -Eq "^128$" && [[ $exchange =~ binance|all ]]; then
@@ -258,6 +251,8 @@ if [ ${param} == "balance" ]; then
    usdt_available=$(echo "$available * $usdt_pair_price" |bc -l)
    usdt_locked=$(echo "$locked * $usdt_pair_price" |bc -l)
    usdt_total=$(echo "$usdt_available + $usdt_locked" |bc -l)
+   until [ -f $tdir/usdtusd ]; do sleep 0.1; done
+   usdtusd=$(head -1 $tdir/usdtusd)
    if [ $residential_country_currency == "USD" ]; then
     fiat_total=$(echo "$usdt_total * $usdtusd" |bc -l)
    else
@@ -295,6 +290,8 @@ if [ ${param} == "balance" ]; then
    usdt_available=$(echo "$available * $usdt_pair_price" |bc -l)
    usdt_locked=$(echo "$locked * $usdt_pair_price" |bc -l)
    usdt_total=$(echo "$usdt_available + $usdt_locked" |bc -l)
+   until [ -f $tdir/usdtusd ]; do sleep 0.1; done
+   usdtusd=$(head -1 $tdir/usdtusd)
    if [ $residential_country_currency == "USD" ]; then
     fiat_total=$(echo "$usdt_total * $usdtusd" |bc -l)
    else
