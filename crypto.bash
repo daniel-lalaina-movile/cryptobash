@@ -136,7 +136,7 @@ setup_colors
 
 banner() {
 tput clear
-msg "
+msg "${RED}
 ██████╗ ██╗      ██████╗  ██████╗██╗  ██╗ ██████╗██╗  ██╗ █████╗ ██╗███╗   ██╗
 ██╔══██╗██║     ██╔═══██╗██╔════╝██║ ██╔╝██╔════╝██║  ██║██╔══██╗██║████╗  ██║
 ██████╔╝██║     ██║   ██║██║     █████╔╝ ██║     ███████║███████║██║██╔██╗ ██║
@@ -150,7 +150,7 @@ msg "
             ██╔══██╗██║   ██║██║     ██╔═██╗ ╚════██║                         
             ██║  ██║╚██████╔╝╚██████╗██║  ██╗███████║                         
             ╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝                         
-"
+${NOFORMAT}"
 }
 banner
 
@@ -310,21 +310,17 @@ if [ ${param} == "balance" ]; then
  # Unifying and summing up the amounts of same assets from multiple exchanges.
  awk '{a[$1]+=$2;b[$1]+=$3;c[$1]+=$4;d[$1]+=$5;e[$1]+=$6;f[$1]+=$7;g[$1]+=$8}END{for(i in a)print i, a[i], b[i], c[i], d[i], e[i], f[i], g[i]/2"%"}' $tdir/*_final > $tdir/total_final1
  # Including percentage allocation column.
- awk 'FNR==NR{s+=$5;next;} {print $0,100*$5/s"%"}' $tdir/total_final1 $tdir/total_final1 > $tdir/total_final2
+ awk 'FNR==NR{s+=$5;next;} {print $0,100*$5/s"%"}' $tdir/total_final1 $tdir/total_final1 |sort -n -k5 > $tdir/total_final2
  # Including footer with total sum of each column.
  awk '{for(i=2;i<=8;i++)a[i]+=$i;print $0} END{l="Total";i=2;while(i in a){l=l" "a[i];i++};print l" X"}' $tdir/total_final2 > $tdir/total_final3
  tail -1 $tdir/total_final3 |awk '{print $1" X "$3" "$4" "$5" "$6" "$7" X "$9}' > $tdir/footer
  sed -i '$ d' $tdir/total_final3
  # Including header
  sed -i '1i\Token Amount USDT-free USDT-locked in-USDT in-BTC in-'$residential_country_currency' Last24hr Allocation' $tdir/total_final3
- cat $tdir/total_final3 $tdir/footer |column -t $(man column |grep -q "\o" && printf '%s' -o ' | ') |sed 's/|/ | /g' > $tdir/total_final4
-
- export GREP_COLORS='ms=00;34'
- grep --color 'Token.*' $tdir/total_final4
- export GREP_COLORS='ms=00;31'
- grep -E --color '.*\-[0-9\.]+%[^$].*' $tdir/total_final4
- export GREP_COLORS='ms=00;34'
- grep -Ev '.*\-[0-9\.]+%[^$].*' $tdir/total_final4 |grep -v Token |grep --color ".*"
+ # Fixing column version compatibility, coloring, and printing
+ msg "$(cat $tdir/total_final3 $tdir/footer |column -t $(man column |grep -q "\o" && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\'${BLUE}'/g; s/ (-[0-9\.]+%)/ \'${RED}'\1\'${BLUE}'/g' |tee $tdir/total_final4)"
+ #cat $tdir/total_final3 $tdir/footer |column -t $(man column |grep -q "\o" && printf '%s' -o ' | ') |sed 's/|/ | /g' > $tdir/total_final4
+ #awk -F '[| ]+' '{gsub(/^/,"'${BLUE}'";gsub(/(-[0-9\.]+%)/,"'${RED}'"\1"'${BLUE}'",$0);print}' $tdir/total_final5
 
  if [ $exchange == "all" ] ; then
   echo ""
@@ -334,9 +330,8 @@ if [ ${param} == "balance" ]; then
    awk '{usdt+=$5;btc+=$6;rcc+=$7} END{print " "usdt" "btc" "rcc}' ${tdir}/${exchange}_final >> $tdir/total_per_exchange
   done
   echo "Total $(tail -1 $tdir/total_final4 |awk -F'[| ]+' '{print $5" "$6" "$7}')" >> $tdir/total_per_exchange
-  cat $tdir/total_per_exchange |column -t $(man column |grep -q "\o" && printf '%s' -o ' | ') |sed 's/|/ | /g' |grep --color ".*"
+  msg "${BLUE}$(cat $tdir/total_per_exchange |column -t $(man column |grep -q "\o" && printf '%s' -o ' | ') |sed 's/|/ | /g' |grep --color ".*")${NOFORMAT}"
  fi
-
  exit
 fi
 
