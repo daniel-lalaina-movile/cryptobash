@@ -316,7 +316,7 @@ if [ ${param} == "balance" ]; then
  # Including header
  sed -i '1i\Token Amount USDT-free USDT-locked in-USDT in-BTC in-'$residential_country_currency' Last24hr Allocation' $tdir/total_final3
  # Fixing column versions compatibility due to -o, coloring, and printing
- msg "$(cat $tdir/total_final3 $tdir/footer |column -t $(man column |grep -q "\o" && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\'${BLUE}'/g; s/ (-[0-9\.]+%)/ \'${RED}'\1\'${BLUE}'/g' |tee $tdir/total_final4)"
+ msg "$(cat $tdir/total_final3 $tdir/footer |column -t $(man column |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\'${BLUE}'/g; s/ (-[0-9\.]+%)/ \'${RED}'\1\'${BLUE}'/g' |tee $tdir/total_final4)"
 
  if [ $exchange == "all" ] ; then
   echo ""
@@ -326,14 +326,14 @@ if [ ${param} == "balance" ]; then
    awk '{usdt+=$5;btc+=$6;rcc+=$7} END{print " "usdt" "btc" "rcc}' ${tdir}/${exchange}_final >> $tdir/total_per_exchange
   done
   echo "Total $(tail -1 $tdir/total_final4 |awk -F'[| ]+' '{print $5" "$6" "$7}')" >> $tdir/total_per_exchange
-  msg "${BLUE}$(cat $tdir/total_per_exchange |column -t $(man column |grep -q "\o" && printf '%s' -o ' | ') |sed 's/|/ | /g' |grep --color ".*")${NOFORMAT}"
+  msg "${BLUE}$(cat $tdir/total_per_exchange |column -t $(man column |grep -q "\-o," && printf '%s' -o ' | ') |sed 's/|/ | /g' |grep --color ".*")${NOFORMAT}"
  fi
  if [ ! -z $fiat_deposits ]; then
   echo ""
   echo ">>>> Percentage $residential_country_currency" > $tdir/total_result
   current_total=$(tail -1 $tdir/total_final4 |awk -F'[| ]+' '{print $7}')
   echo "Return $(echo "scale=2;100 * $current_total / $fiat_deposits - 100" |bc -l)% $(echo "$current_total - $fiat_deposits" |bc -l)" >> $tdir/total_result
-  msg "$(cat $tdir/total_result |column -t $(man column |grep -q "\o" && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\'${BLUE}'/g; s/ (-[0-9\.]+%)/ \'${RED}'\1\'${BLUE}'/g')${NOFORMAT}"
+  msg "$(cat $tdir/total_result |column -t $(man column |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\'${BLUE}'/g; s/ (-[0-9\.]+%)/ \'${RED}'\1\'${BLUE}'/g')${NOFORMAT}"
  fi
  exit
 fi
