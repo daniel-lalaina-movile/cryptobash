@@ -331,7 +331,7 @@ if [ ${param} == "balance" ]; then
  if [ ! -z $fiat_deposits ]; then
   echo ""
   echo ">>>> Percentage $residential_country_currency" > $tdir/total_result
-  current_total=$(tail -1 $tdir/total_per_exchange |awk -F'[| ]+' '{print $4}')
+  current_total=$(tail -1 $tdir/total_final4 |awk -F'[| ]+' '{print $7}')
   echo "Return $(echo "scale=2;100 * $current_total / $fiat_deposits - 100" |bc -l)% $(echo "$current_total - $fiat_deposits" |bc -l)" >> $tdir/total_result
   msg "$(cat $tdir/total_result |column -t $(man column |grep -q "\o" && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\'${BLUE}'/g; s/ (-[0-9\.]+%)/ \'${RED}'\1\'${BLUE}'/g')${NOFORMAT}"
  fi
