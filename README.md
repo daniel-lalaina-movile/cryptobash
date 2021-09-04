@@ -7,21 +7,37 @@
 
 ![2021-09-04 00-08-03](https://user-images.githubusercontent.com/1348148/132080576-8dfaa45c-2406-45ae-bdee-c059e6bcf607.gif)
 
-## Installation:
+## Regular installation:
 
-- git clone git@github.com:daniel-lalaina-movile/cryptobash.git  
+- `git clone git@github.com:daniel-lalaina-movile/cryptobash.git`  
 (or git clone https://github.com/daniel-lalaina-movile/cryptobash.git)
 
-- cd bashcrypto
+- `cd bashcrypto`
 
-- cp .credentials-example .credentials
+- `cp .credentials-example .credentials`
 
 - Include your API credentials in .credentials file  
 (If you use only one of both exchanges, just keep the other one empty.)
 
+### Optional
+
+- `cp .fiat_deposits-example .fiat_deposits`
+
+- Include the deposits or sum of deposits in .fiat_deposits 
+
+## Docker installation
+
+- Same as regular instalation, plus:
+
+- [Docker](https://docs.docker.com/get-docker/ "Install Docker")
+
+- `cd bashcrypto`
+
+- `docker build -t cryptobash .`
+
 ## Current capabilities
 
-- Show your detailed balance in USDT and your fiat currency (Binance ✔️ / Gate.io ✔️)
+- Show your results, and the balance detais represented in USDT BTC FIAT. (Binance ✔️ / Gate.io ✔️)
 - Sell every token asap at market price (Binance ✔️ / Gate.io ❌)
 - Make basic orders on specific or multiple tokens at market price (Binance ✔️ / Gate.io ❌)
 
@@ -31,7 +47,10 @@
 - More sophisticated orders.
 - Auto rebalance based on pre-configured percentages.
 
-## Instructions:
+## Test regular installation:
 
-- ./crypto.bash -h  
-(run help)
+- Regular `./crypto.bash -h`  
+
+- Doker `docker run cryptobash -h`  
+
+- `docker run cryptobash -h`  
