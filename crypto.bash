@@ -2,8 +2,8 @@
 
 # https://github.com/daniel-lalaina-movile/cryptobash
 
-#set -Eeuo pipefail
-#trap cleanup SIGINT SIGTERM ERR EXIT
+set -Eeuo pipefail
+trap cleanup SIGINT SIGTERM ERR EXIT
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)
 script_name="./$(basename "${BASH_SOURCE[0]}")"
@@ -319,11 +319,10 @@ if [ ${param} == "balance" ]; then
  # Including header
  sed -i '1i\Token Amount USDT-free USDT-locked in-USDT in-BTC in-'$residential_country_currency' Last24hr Allocation' $tdir/total_final3
  # Fixing column versions compatibility due to -o, coloring, and printing
- #msg "$(cat $tdir/total_final3 $tdir/footer |column -t $(column -h |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\'${BLUE}'/g; s/ (-[0-9\.]+%)/ \'${RED}'\1\'${BLUE}'/g' |tee $tdir/total_final4)"
  msg "$(cat $tdir/total_final3 $tdir/footer |column -t $(column -h |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\\033\[0;34m/g; s/ (-[0-9\.]+%)/ \\033\[0;31m\1\\033\[0;34m/g' |tee $tdir/total_final4)"
 
  if [[ $exchange == "all" ]] ; then
-  echo ""
+  echo "" > $tdir/total_per_exchange
   echo -e "Exchange USDT BTC $residential_country_currency" > $tdir/total_per_exchange
   for exchange in `ls -1 ${tdir}/*_final |sed -E 's/(^.*\/|_final)//g'`; do
    echo -n "${exchange^}" >> $tdir/total_per_exchange
@@ -337,7 +336,6 @@ if [ ${param} == "balance" ]; then
   echo ">>>> Percentage $residential_country_currency" > $tdir/total_result
   current_total=$(tail -1 $tdir/total_final4 |awk -F'[| ]+' '{print $7}')
   echo "Return $(echo "scale=2;100 * $current_total / $fiat_deposits - 100" |bc -l)% $(echo "$current_total - $fiat_deposits" |bc -l)" >> $tdir/total_result
-  #msg "$(cat $tdir/total_result |column -t $(column -h |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\'${BLUE}'/g; s/ (-[0-9\.]+%)/ \'${RED}'\1\'${BLUE}'/g')${NOFORMAT}"
   msg "$(cat $tdir/total_result |column -t $(column -h |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\\033\[0;34m/g; s/ (-[0-9\.]+%)/ \\033\[0;31m\1\\033\[0;34m/g')\033[0m"
  fi
  exit
