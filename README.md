@@ -49,8 +49,6 @@
 
 ## Test regular installation:
 
-- Regular `./crypto.bash -h`  
+- Regular (run help) `./crypto.bash -h`  
 
-- Doker `docker run cryptobash -h`  
-
-- `docker run cryptobash -h`  
+- Doker (run help) `docker run cryptobash -h`  
