@@ -29,7 +29,7 @@
 
 - Same as regular instalation, plus:
 
-- [Docker](https://docs.docker.com/get-docker/ "Install Docker")
+- [Install Docker](https://docs.docker.com/get-docker/ "Docker")
 
 - `cd bashcrypto`
 
