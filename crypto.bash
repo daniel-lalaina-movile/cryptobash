@@ -63,7 +63,7 @@ cleanup() {
 
 setup_colors() {
   if [[ -t 2 ]] && [[ -z "${NO_COLOR-}" ]] && [[ "${TERM-}" != "dumb" ]]; then
-    NOFORMAT='\033[0m' RED='\033[0;31m' GREEN='\033[0;32m' BLUE='\033[0;34m' YELLOW='\033[0;33m'
+    NOFORMAT="\033[0m" RED="\033[0;31m" GREEN="\033[0;32m" BLUE="\033[0;34m" YELLOW="\033[0;33m"
   else
     NOFORMAT='' RED='' GREEN='' BLUE='' RED=''
   fi
@@ -135,15 +135,15 @@ parse_params "$@"
 setup_colors
 
 banner() {
-tput clear
-msg "${GREEN}
+if [ $web == "false" ]; then tput clear; fi
+msg "i\033[0;32m
 ██████╗ ██╗      ██████╗  ██████╗██╗  ██╗ ██████╗██╗  ██╗ █████╗ ██╗███╗   ██╗    ██████╗  ██████╗  ██████╗██╗  ██╗███████╗
 ██╔══██╗██║     ██╔═══██╗██╔════╝██║ ██╔╝██╔════╝██║  ██║██╔══██╗██║████╗  ██║    ██╔══██╗██╔═══██╗██╔════╝██║ ██╔╝██╔════╝
 ██████╔╝██║     ██║   ██║██║     █████╔╝ ██║     ███████║███████║██║██╔██╗ ██║    ██████╔╝██║   ██║██║     █████╔╝ ███████╗
 ██╔══██╗██║     ██║   ██║██║     ██╔═██╗ ██║     ██╔══██║██╔══██║██║██║╚██╗██║    ██╔══██╗██║   ██║██║     ██╔═██╗ ╚════██║
 ██████╔╝███████╗╚██████╔╝╚██████╗██║  ██╗╚██████╗██║  ██║██║  ██║██║██║ ╚████║    ██║  ██║╚██████╔╝╚██████╗██║  ██╗███████║
 ╚═════╝ ╚══════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝    ╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝
-${NOFORMAT}"
+\033[0m"
 }
 banner
 
@@ -223,7 +223,7 @@ fi
 
 if [ ${param} == "balance" ]; then
  rm -f $tdir/*
- curl -s -m3 'https://api.gateio.ws/api/v4/spot/tickers?currency_pair=USDT_USD' |jq -r .[].last |grep -E "[0-9]+\.[0-9]+" > $tdir/usdtusd || echo "1" > $tdir/usdtusd &
+ curl -s -m3 'https://'$gateio_uri'/api/v4/spot/tickers?currency_pair=USDT_USD' |jq -r .[].last |grep -E "[0-9]+\.[0-9]+" > $tdir/usdtusd || echo "1" > $tdir/usdtusd &
  fiat_deposits=$(awk '{dep+=$1}END{print dep}' $script_dir/.fiat_deposits 2>/dev/null &)
  $(
  if [ $residential_country_currency == "USD" ]; then fiat_usd_rate="1"; else curl_usd; fi
@@ -316,7 +316,8 @@ if [ ${param} == "balance" ]; then
  # Including header
  sed -i '1i\Token Amount USDT-free USDT-locked in-USDT in-BTC in-'$residential_country_currency' Last24hr Allocation' $tdir/total_final3
  # Fixing column versions compatibility due to -o, coloring, and printing
- msg "$(cat $tdir/total_final3 $tdir/footer |column -t $(man column |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\'${BLUE}'/g; s/ (-[0-9\.]+%)/ \'${RED}'\1\'${BLUE}'/g' |tee $tdir/total_final4)"
+ #msg "$(cat $tdir/total_final3 $tdir/footer |column -t $(column -h |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\'${BLUE}'/g; s/ (-[0-9\.]+%)/ \'${RED}'\1\'${BLUE}'/g' |tee $tdir/total_final4)"
+ msg "$(cat $tdir/total_final3 $tdir/footer |column -t $(column -h |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\\033\[0;34m/g; s/ (-[0-9\.]+%)/ \\033\[0;31m\1\\033\[0;34m/g' |tee $tdir/total_final4)"
 
  if [[ $exchange == "all" ]] ; then
   echo ""
@@ -326,14 +327,15 @@ if [ ${param} == "balance" ]; then
    awk '{usdt+=$5;btc+=$6;rcc+=$7} END{print " "usdt" "btc" "rcc}' ${tdir}/${exchange}_final >> $tdir/total_per_exchange
   done
   echo "Total $(tail -1 $tdir/total_final4 |awk -F'[| ]+' '{print $5" "$6" "$7}')" >> $tdir/total_per_exchange
-  msg "${BLUE}$(cat $tdir/total_per_exchange |column -t $(man column |grep -q "\-o," && printf '%s' -o ' | ') |sed 's/|/ | /g' |grep --color ".*")${NOFORMAT}"
+  msg "${BLUE}$(cat $tdir/total_per_exchange |column -t $(column -h |grep -q "\-o," && printf '%s' -o ' | ') |sed 's/|/ | /g' |grep --color ".*")${NOFORMAT}"
  fi
  if [ ! -z $fiat_deposits ]; then
   echo ""
   echo ">>>> Percentage $residential_country_currency" > $tdir/total_result
   current_total=$(tail -1 $tdir/total_final4 |awk -F'[| ]+' '{print $7}')
   echo "Return $(echo "scale=2;100 * $current_total / $fiat_deposits - 100" |bc -l)% $(echo "$current_total - $fiat_deposits" |bc -l)" >> $tdir/total_result
-  msg "$(cat $tdir/total_result |column -t $(man column |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\'${BLUE}'/g; s/ (-[0-9\.]+%)/ \'${RED}'\1\'${BLUE}'/g')${NOFORMAT}"
+  #msg "$(cat $tdir/total_result |column -t $(column -h |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\'${BLUE}'/g; s/ (-[0-9\.]+%)/ \'${RED}'\1\'${BLUE}'/g')${NOFORMAT}"
+  msg "$(cat $tdir/total_result |column -t $(column -h |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\\033\[0;34m/g; s/ (-[0-9\.]+%)/ \\033\[0;31m\1\\033\[0;34m/g')${NOFORMAT}"
  fi
  exit
 fi
