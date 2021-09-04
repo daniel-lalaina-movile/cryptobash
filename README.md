@@ -5,7 +5,7 @@
 ## Example:
 - ./crypto.bash -p balance
 
-![cryptobash](https://user-images.githubusercontent.com/1348148/131860897-5dbb68fb-c29b-4dab-b33a-a9eea9cb8d26.gif)
+![2021-09-04 00-08-03](https://user-images.githubusercontent.com/1348148/132080576-8dfaa45c-2406-45ae-bdee-c059e6bcf607.gif)
 
 ## Installation:
 
