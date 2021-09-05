@@ -61,14 +61,6 @@ cleanup() {
  #rm -rf $tdir/*
 }
 
-setup_colors() {
-  if [[ -t 2 ]] && [[ -z "${NO_COLOR-}" ]] && [[ "${TERM-}" != "dumb" ]]; then
-    NOFORMAT="\033[0m" RED="\033[0;31m" GREEN="\033[0;32m" BLUE="\033[0;34m" YELLOW="\033[0;33m"
-  else
-    NOFORMAT='' RED='' GREEN='' BLUE='' RED=''
-  fi
-}
-
 msg() {
   echo >&2 -e "${1-}"
 }
@@ -90,7 +82,8 @@ parse_params() {
     case "${1-}" in
     --docker)
       script_name="docker run cryptobash"
-      web="true";;
+      #web="true"
+      ;;
     -h | --help) usage ;;
     -v | --verbose) set -x ;;
     --no-color) NO_COLOR=1 ;;
@@ -113,9 +106,9 @@ parse_params() {
   if echo ${@-} |grep -q "binance"; then
    echo -n "$binance_key$binance_secret" |wc -c |grep -Eq "^128$|^0$" || die "Invalid binance_key/binance_secret, if you don't have account in this exchange, please leave both fields empty"
   elif echo ${@-} |grep -q "gateio"; then
-  echo -n "$gateio_key$gateio_secret" |wc -c |grep -Eq "^96$|^0$" || die "Invalid gateio_key/gateio_secret, if you don't have account in this exchange, please leave both fields empty"
+   echo -n "$gateio_key$gateio_secret" |wc -c |grep -Eq "^96$|^0$" || die "Invalid gateio_key/gateio_secret, if you don't have account in this exchange, please leave both fields empty"
   elif echo ${@-} |grep -q "all"; then
-  echo -n "$gateio_key$gateio_secret$binance_key$binance_secret" |wc -c |grep -Eq "^0$" && die "You must configure a pair of key/secret for at least one of the exchanges."
+   echo -n "$gateio_key$gateio_secret$binance_key$binance_secret" |wc -c |grep -Eq "^0$" && die "You must configure a pair of key/secret for at least one of the exchanges."
   fi
 
   # Checking required params and arguments
@@ -135,7 +128,6 @@ parse_params() {
 }
 
 parse_params "$@"
-setup_colors
 
 banner() {
 clear
@@ -148,30 +140,25 @@ msg "\033[0;34m
 ╚═════╝ ╚══════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝    ╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝
 \033[0m"
 }
-banner
-
-# Checking exchange keys
-echo -n "$binance_key$binance_secret" |wc -c |grep -Eq "^128$|^0$" || die "Invalid binance_key/binance_secret, if you don't have account in this exchange, please leave both fields empty"
-echo -n "$gateio_key$gateio_secret" |wc -c |grep -Eq "^96$|^0$" || die "Invalid gateio_key/gateio_secret, if you don't have account in this exchange, please leave both fields empty"
-echo -n "$gateio_key$gateio_secret$binance_key$binance_secret" |wc -c |grep -Eq "^0$" && die "You must configure a pair of key/secret for at least one of the exchanges."
+if [ ! ${param} == "balance" ]; then banner; fi
 
 progress_bar() {
  pid=$!
+ banner
  while kill -0 $pid 2> /dev/null; do
-  i=0; c=-1
-  while kill -0 $pid 2> /dev/null; do
-   i=$(($i+1))
-   j=$i
-   c=$(($(tput cols)-3))
-   tput sc
-   printf "[$(for((k=0;k<j;k++));do printf "\$\$";done;)>";tput cuf $((c-j));printf "]"
-   tput rc
-   sleep 0.4
-   if [ $i == $c ]; then break; fi
+  for ((k = 0; k <= 30 ; k++)); do
+   echo -n "[ "
+   for ((i = 0 ; i <= k; i++)); do echo -n "\$\$\$\$"; done
+   #for ((j = i ; j <= 30 ; j++)); do echo -n "   "; done
+   v=$((k * 30))
+   echo -n " ] "
+   kill -0 $pid 2>/dev/null || break
+   echo -n "$v %" $'\r'
+   sleep 0.3
   done
-  printf "[";printf '%0.s$' $(seq 1 $(($(tput cols)-3)));printf "]"
- echo
  done
+   echo -ne "\r"
+ msg "[ \$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$\$ ] 1000 %"
 }
 
 func_timestamp() {
@@ -319,7 +306,7 @@ if [ ${param} == "balance" ]; then
  # Including header
  sed -i '1i\Token Amount USDT-free USDT-locked in-USDT in-BTC in-'$residential_country_currency' Last24hr Allocation' $tdir/total_final3
  # Fixing column versions compatibility due to -o, coloring, and printing
- msg "$(cat $tdir/total_final3 $tdir/footer |column -t $(column -h |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\\033\[0;34m/g; s/ (-[0-9\.]+%)/ \\033\[0;31m\1\\033\[0;34m/g' |tee $tdir/total_final4)"
+ msg "\n$(cat $tdir/total_final3 $tdir/footer |column -t $(column -h |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\\033\[0;34m/g; s/ (-[0-9\.]+%)/ \\033\[0;31m\1\\033\[0;34m/g' |tee $tdir/total_final4)"
 
  if [[ $exchange == "all" ]] ; then
   echo -e "Exchange USDT BTC $residential_country_currency" > $tdir/total_per_exchange
@@ -328,7 +315,7 @@ if [ ${param} == "balance" ]; then
    awk '{usdt+=$5;btc+=$6;rcc+=$7} END{print " "usdt" "btc" "rcc}' ${tdir}/${exchange}_final >> $tdir/total_per_exchange
   done
   echo "Total $(tail -1 $tdir/total_final4 |awk -F'[| ]+' '{print $5" "$6" "$7}')" >> $tdir/total_per_exchange
-  msg "\n${BLUE}$(cat $tdir/total_per_exchange |column -t $(column -h |grep -q "\-o," && printf '%s' -o ' | ') |sed 's/|/ | /g' |grep --color ".*")${NOFORMAT}"
+  msg "\n\033[0;34m$(cat $tdir/total_per_exchange |column -t $(column -h |grep -q "\-o," && printf '%s' -o ' | ') |sed 's/|/ | /g' |grep --color ".*")\033[0m"
  fi
  if [ ! -z $fiat_deposits ]; then
   echo "Return Percentage $residential_country_currency" >> $tdir/total_result
