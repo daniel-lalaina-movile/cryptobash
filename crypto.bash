@@ -306,7 +306,7 @@ if [ ${param} == "balance" ]; then
  # Including header
  sed -i '1i\Token Amount USDT-free USDT-locked in-USDT in-BTC in-'$residential_country_currency' Last24hr Allocation' $tdir/total_final3
  # Fixing column versions compatibility due to -o, coloring, and printing
- msg "\n$(cat $tdir/total_final3 $tdir/footer |column -t $(column -h |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\\033\[0;34m/g; s/ (-[0-9\.]+%)/ \\033\[0;31m\1\\033\[0;34m/g' |tee $tdir/total_final4)"
+ msg "\n$(cat $tdir/total_final3 $tdir/footer |column -t $(man -P cat column| grep -q "\-o" && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\\033\[0;34m/g; s/ (-[0-9\.]+%)/ \\033\[0;31m\1\\033\[0;34m/g' |tee $tdir/total_final4)"
 
  if [[ $exchange == "all" ]] ; then
   echo -e "Exchange USDT BTC $residential_country_currency" > $tdir/total_per_exchange
@@ -315,13 +315,13 @@ if [ ${param} == "balance" ]; then
    awk '{usdt+=$5;btc+=$6;rcc+=$7} END{print " "usdt" "btc" "rcc}' ${tdir}/${exchange}_final >> $tdir/total_per_exchange
   done
   echo "Total $(tail -1 $tdir/total_final4 |awk -F'[| ]+' '{print $5" "$6" "$7}')" >> $tdir/total_per_exchange
-  msg "\n\033[0;34m$(cat $tdir/total_per_exchange |column -t $(column -h |grep -q "\-o," && printf '%s' -o ' | ') |sed 's/|/ | /g' |grep --color ".*")\033[0m"
+  msg "\n\033[0;34m$(cat $tdir/total_per_exchange |column -t $(man -P cat column| grep -q "\-o" && printf '%s' -o ' | ') |sed 's/|/ | /g' |grep --color ".*")\033[0m"
  fi
  if [ ! -z $fiat_deposits ]; then
   echo "Return Percentage $residential_country_currency" >> $tdir/total_result
   current_total=$(tail -1 $tdir/total_final4 |awk -F'[| ]+' '{print $7}')
   echo ">>>>> $(echo "scale=2;100 * $current_total / $fiat_deposits - 100" |bc -l)% $(echo "$current_total - $fiat_deposits" |bc -l)" >> $tdir/total_result
-  msg "\n$(cat $tdir/total_result |column -t $(column -h |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\\033\[0;34m/g; s/ (-[0-9\.]+%)/ \\033\[0;31m\1\\033\[0;34m/g')\033[0m"
+  msg "\n$(cat $tdir/total_result |column -t $(man -P cat column| grep -q "\-o" && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\\033\[0;34m/g; s/ (-[0-9\.]+%)/ \\033\[0;31m\1\\033\[0;34m/g')\033[0m"
  fi
  exit
 fi
