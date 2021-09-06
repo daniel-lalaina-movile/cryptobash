@@ -1,5 +1,3 @@
-# cryptobash
-
 ## Current capabilities
 
 - Show your results, and the balance details represented in USDT BTC FIAT. (Binance ✔️ / Gate.io ✔️ )
