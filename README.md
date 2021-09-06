@@ -1,9 +1,13 @@
 # cryptobash
 
-## This project makes requests to Binance and Gate.io crypto exchanges.
+## Current capabilities
+
+- Show your results, and the balance detais represented in USDT BTC FIAT. (Binance ✔️ / Gate.io ✔️ )
+- Sell every token asap at market price (Binance ✔️ / Gate.io ✔️ )
+- Make basic orders on specific or multiple tokens at market price (Binance ✔️ / Gate.io ❌ )
 
 ## Example:
-- ./crypto.bash -p balance
+- ./crypto.bash -p balance all
 
 ![2021-09-04 21-05-58](https://user-images.githubusercontent.com/1348148/132110864-e5c4f75c-fa78-4ff6-a62d-246560c7f087.gif)
 
@@ -34,12 +38,6 @@
 - `cd bashcrypto`
 
 - `docker build -t cryptobash .`
-
-## Current capabilities
-
-- Show your results, and the balance detais represented in USDT BTC FIAT. (Binance ✔️ / Gate.io ✔️ )
-- Sell every token asap at market price (Binance ✔️ / Gate.io ✔️ )
-- Make basic orders on specific or multiple tokens at market price (Binance ✔️ / Gate.io ❌ )
 
 ## TODO:
 
