@@ -37,9 +37,9 @@
 
 ## Current capabilities
 
-- Show your results, and the balance detais represented in USDT BTC FIAT. (Binance ✔️ / Gate.io ✔️)
-- Sell every token asap at market price (Binance ✔️ / Gate.io ❌)
-- Make basic orders on specific or multiple tokens at market price (Binance ✔️ / Gate.io ❌)
+- Show your results, and the balance detais represented in USDT BTC FIAT. (Binance ✔️ / Gate.io ✔️ )
+- Sell every token asap at market price (Binance ✔️ / Gate.io ✔️ )
+- Make basic orders on specific or multiple tokens at market price (Binance ✔️ / Gate.io ❌ )
 
 ## TODO:
 
