@@ -1,13 +1,13 @@
 ## Current capabilities
 
-- Show your results, and the balance details represented in USDT BTC FIAT. (Binance ✔️ / Gate.io ✔️ )
-- Sell every token asap at market price (Binance ✔️ / Gate.io ✔️ )
-- Make basic orders on specific or multiple tokens at market price (Binance ✔️ / Gate.io ❌ )
+- Show your results, and the balance details represented in USDT BTC FIAT. (Binance ✔️ / Gate.io ✔️ / FTX ✔️ )
+- Sell every token asap at market price (Binance ✔️ / Gate.io ✔️ / FTX ✔️)
+- Make basic orders on specific or multiple tokens at market price (Binance ✔️ / Gate.io ❌ / FTX ❌)
 
 ## Example:
 - `./crypto.bash -p balance all`
 
-![2021-09-04 21-05-58](https://user-images.githubusercontent.com/1348148/132110864-e5c4f75c-fa78-4ff6-a62d-246560c7f087.gif)
+![2021-09-08 20-32-58](https://user-images.githubusercontent.com/1348148/132599068-14639284-e823-4360-b568-de8f263220da.gif)
 
 ## Regular installation:
 
@@ -35,7 +35,7 @@
 
 - `cd bashcrypto`
 
-- `docker build -t cryptobash .`
+- `docker build -t cryptobash:latest .`
 
 ## TODO:
 
