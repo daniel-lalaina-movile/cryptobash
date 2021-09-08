@@ -229,7 +229,7 @@ if [ ${param} == "runaway" ]; then
   done
  fi &
  if echo -n $gateio_key$gateio_secret |wc -c |grep -Eq "^96$" && [[ $exchange =~ gateio|all ]]; then
-  if [ ! -z $test ]; then echo "Unfortunately, gate.io doesn't have a test endpoint."; exit; fi
+  if [ ! -z $test ]; then echo "Unfortunately, gate.io doesn't have a test endpoint, so here we are only testing our side"; fi
   gateio_method="GET"
   gateio_query_string=""
   gateio_endpoint="api/v4/spot/accounts"
@@ -238,22 +238,20 @@ if [ ${param} == "runaway" ]; then
   gateio_timestamp=$(date +%s)
   gateio_sign_string="$gateio_method\n/$gateio_endpoint\n$gateio_query_string\n$gateio_body_hash\n$gateio_timestamp"
   gateio_signature=$(printf "$gateio_sign_string" | openssl sha512 -hmac "$gateio_secret" | awk '{print $NF}')
-  curl_gateio |jq ' .[] | select((.available!="0") and (.currency!="USDT")) |.currency,.available' |paste - - > $tdir/gateio_balance
+  curl_gateio |jq -r ' .[] | select((.available!="0") and (.currency!="USDT")) |.currency,.available' |paste - - > $tdir/gateio_balance
   gateio_endpoint="api/v4/spot/currency_pairs"
-  curl_gateio_public |jq -r '.[] |.id' |paste - - > $tdir/gateio_supported_pairs
-  cat $tdir/gateio_balance | grep -Ev "^USDT|USDC|BUSD" |while read symbol available; do
-   if grep -E "^${symbol}_USDT$" $tdir/gateio_supported_pairs ; then
-    currency_pair="${symbol}_USDT"
-   elif grep -E "^${symbol}_BTC$" $tdir/gateio_supported_pairs ; then
-    currency_pair="${symbol}_BTC"
-   fi
-   gateio_query_string="currency_pair=$currency_pair"
-   highest_bid=$(gateio_method="GET"; curl_gateio_public |jq '.[].highest_bid' |sed 's/"//g')
-   price=$(echo "$highest_bid * 0.99" |bc -l)
+  curl_gateio_public |jq -r '.[] |.id,.amount_precision,.precision' |paste - - - > $tdir/gateio_supported_pairs
+  cat $tdir/gateio_balance | grep -Ev "^(USDT|USDC|BUSD)" |while read symbol available; do
+   read symbol amount_scale price_scale<<<$(grep -E "^${symbol}_USDT\s+" ${tdir}/gateio_supported_pairs || grep -E "^${symbol}_BTC\s+" $tdir/gateio_supported_pairs)
+   gateio_query_string="currency_pair=$symbol"
+   gateio_endpoint="api/v4/spot/tickers"
+   highest_bid=$(gateio_method="GET"; curl_gateio_public |jq -r '.[].highest_bid')
+   gateio_price=$(echo "scale=${price_scale}; $highest_bid * 0.99" |bc -l |sed -E 's/^\./0./g')
+   available=$(echo "scale=${amount_scale}; $available / 1" |bc -l |sed -E 's/^\./0./g')
    gateio_method="POST"
    gateio_query_string=""
    gateio_endpoint="spot/${test}order"
-   gateio_body='{"currency_pair":"'$currency_pair'","side":"sell","amount":"'$available'","price":"'$price'"}'
+   gateio_body='{"currency_pair":"'$symbol'","side":"sell","amount":"'$available'","price":"'$gateio_price'"}'
    gateio_body_hash=$(printf "$gateio_body" | openssl sha512 | awk '{print $NF}')
    gateio_timestamp=$(date +%s)
    gateio_sign_string="$gateio_method\n/$gateio_endpoint\n$gateio_query_string\n$gateio_body_hash\n$gateio_timestamp"
