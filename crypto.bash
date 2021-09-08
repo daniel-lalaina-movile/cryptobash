@@ -183,7 +183,7 @@ curl_binance_public() {
 }
 
 curl_gateio() {
- curl -s -X $gateio_method -H "Timestamp: $timestamp" -H "KEY: $gateio_key" -H "SIGN: $gateio_signature" "https://$gateio_uri/$gateio_endpoint?"
+ curl -s -X $gateio_method -H "Timestamp: $gateio_timestamp" -H "KEY: $gateio_key" -H "SIGN: $gateio_signature" "https://$gateio_uri/$gateio_endpoint?"
 }
 
 curl_gateio_public() {
@@ -202,20 +202,28 @@ if [ ${param} == "runaway" ]; then
  if [ -z $test ]; then read -p "Are you sure? This will convert all your assets to USDT (y/n)" -n 1 -r; if [[ ! $REPLY =~ ^[Yy]$ ]]; then exit; fi; fi
  if echo -n $binance_key$binance_secret |wc -c |grep -Eq "^128$" && [[ $exchange =~ binance|all ]]; then
   binance_method="GET"
+  binance_endpoint="api/v1/exchangeInfo"
+  curl_binance_public |jq '.symbols | .[] | [{symbol: .symbol, filter: .filters}] | .[] |del(.filter[] | select(.filterType != "LOT_SIZE"))' |grep -E 'symbol|stepSize' |sed 's/^.*: "//g; s/".*//g' |paste - - > $tdir/binance_exchangeInfo
   binance_endpoint="sapi/v1/capital/config/getall"
-  timestamp=$(func_timestamp)
-  binance_query_string="timestamp=$timestamp"
+  binance_timestamp=$(func_timestamp)
+  binance_query_string="timestamp=$binance_timestamp"
   binance_signature=$(echo -n "$binance_query_string" |openssl dgst -sha256 -hmac "$binance_secret" |awk '{print $2}')
-  curl_binance |jq '.[] |select((.free|tonumber>0.0001) and (.coin!="USDT")) |.coin,.free' |paste - - |sed 's/"//g' |while read symbol qty; do
-  #curl_binance |jq '.[] |{symbol: .coin, free: .free} | select((.free|tonumber>0.0001) and (.symbol!="USDT")) | to_entries[] | .value' |paste - - |sed 's/"//g' |while read symbol qty; do
+  curl_binance |jq -r '.[] |select((.free|tonumber>0.0001) and (.coin!="USDT")) |.coin,.free' |paste - - |while read symbol qty; do
+   read symbol stepSize<<<$(grep -E "^${symbol}USDT\s+" $tdir/binance_exchangeInfo || grep -E "^${symbol}BTC\s+" $tdir/binance_exchangeInfo)
+   if [ $qty -lt $stepSize ]; then continue; fi
+   stepSize=$(echo $stepSize |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
+   decimal=$(echo "1 / $stepSize" |bc -l |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
+   qty_dec=$(echo "$qty * $decimal" |bc -l |sed -E 's/\..*//g') 
+   qty=$(echo "$qty_dec / $decimal" |bc -l |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
    binance_method="POST"
    binance_endpoint="api/v3/order$test"
-   timestamp=$(func_timestamp)
-   binance_query_string="quantity=$(echo -n $qty |sed 's/\..*//g')&symbol=${symbol}USDT&side=SELL&type=MARKET&timestamp=$timestamp"
+   binance_timestamp=$(func_timestamp)
+   binance_query_string="quantity=$qty&symbol=${symbol}&side=SELL&type=MARKET&timestamp=$binance_timestamp"
    binance_signature=$(echo -n "$binance_query_string" |openssl dgst -sha256 -hmac "$binance_secret" |awk '{print $2}')
    curl_binance |grep -v "Invalid symbol" || \
     binance_method="POST" 
-    binance_query_string="quantity=$qty&symbol=${symbol}BTC&side=SELL&type=MARKET&timestamp=$timestamp" \
+    binance_timestamp=$(func_timestamp)
+    binance_query_string="quantity=$qty&symbol=${symbol}&side=SELL&type=MARKET&timestamp=$binance_timestamp" \
     binance_signature=$(echo -n "$binance_query_string" |openssl dgst -sha256 -hmac "$binance_secret" |awk '{print $2}') \
     curl_binance &
   done
@@ -227,14 +235,12 @@ if [ ${param} == "runaway" ]; then
   gateio_endpoint="api/v4/spot/accounts"
   gateio_body=""
   gateio_body_hash=$(printf "$gateio_body" | openssl sha512 | awk '{print $NF}')
-  timestamp=$(date +%s)
-  gateio_sign_string="$gateio_method\n/$gateio_endpoint\n$gateio_query_string\n$gateio_body_hash\n$timestamp"
+  gateio_timestamp=$(date +%s)
+  gateio_sign_string="$gateio_method\n/$gateio_endpoint\n$gateio_query_string\n$gateio_body_hash\n$gateio_timestamp"
   gateio_signature=$(printf "$gateio_sign_string" | openssl sha512 -hmac "$gateio_secret" | awk '{print $NF}')
-  curl_gateio |jq ' .[] | select((.available!="0") and (.currency!="USDT")) |.currency,.available' |paste - - |sed 's/"//g' > $tdir/gateio_balance
-  #curl_gateio |jq ' .[] |{symbol: .currency, available: .available} | select((.available!="0") and (.symbol!="USDT")) | to_entries[] | .value' |paste - - |sed 's/"//g' > $tdir/gateio_balance
-  #gateio_endpoint="api/v4/spot/tickers"
+  curl_gateio |jq ' .[] | select((.available!="0") and (.currency!="USDT")) |.currency,.available' |paste - - > $tdir/gateio_balance
   gateio_endpoint="api/v4/spot/currency_pairs"
-  curl_gateio_public |jq '.[].id' |sed 's/"//g' > $tdir/gateio_supported_pairs
+  curl_gateio_public |jq -r '.[] |.id' |paste - - > $tdir/gateio_supported_pairs
   cat $tdir/gateio_balance | grep -Ev "^USDT|USDC|BUSD" |while read symbol available; do
    if grep -E "^${symbol}_USDT$" $tdir/gateio_supported_pairs ; then
     currency_pair="${symbol}_USDT"
@@ -249,8 +255,8 @@ if [ ${param} == "runaway" ]; then
    gateio_endpoint="spot/${test}order"
    gateio_body='{"currency_pair":"'$currency_pair'","side":"sell","amount":"'$available'","price":"'$price'"}'
    gateio_body_hash=$(printf "$gateio_body" | openssl sha512 | awk '{print $NF}')
-   timestamp=$(date +%s)
-   gateio_sign_string="$gateio_method\n/$gateio_endpoint\n$gateio_query_string\n$gateio_body_hash\n$timestamp"
+   gateio_timestamp=$(date +%s)
+   gateio_sign_string="$gateio_method\n/$gateio_endpoint\n$gateio_query_string\n$gateio_body_hash\n$gateio_timestamp"
    gateio_signature=$(printf "$gateio_sign_string" | openssl sha512 -hmac "$gateio_secret" | awk '{print $NF}')
    curl_gateio
   done
@@ -267,11 +273,10 @@ if [ ${param} == "balance" ]; then
  if echo -n $binance_key$binance_secret |wc -c |grep -Eq "^128$" && [[ $exchange =~ binance|all ]]; then
   binance_method="GET"
   binance_endpoint="sapi/v1/capital/config/getall"
-  timestamp=$(func_timestamp)
-  binance_query_string="timestamp=$timestamp"
+  binance_timestamp=$(func_timestamp)
+  binance_query_string="timestamp=$binance_timestamp"
   binance_signature=$(echo -n "$binance_query_string" |openssl dgst -sha256 -hmac "$binance_secret" |awk '{print $2}')
   curl_binance |jq ' .[] | select(.free!="0" or .locked!="0") | .coin,.free,.locked' |paste - - - > $tdir/binance_balance
-  #curl_binance |jq ' .[] | {symbol: .coin, available: .free, locked: .locked} | select(.available!="0" or .locked!="0") | to_entries[] | .value' |paste - - - > $tdir/binance_balance
   binance_endpoint="api/v3/ticker/24hr"
   curl_binance_public |jq '.[] | {symbol: .symbol, price: .lastPrice, last24hr: .priceChangePercent|tonumber} | select(.price!="0.00000000" and .price!="0.00" and .price!="0") | to_entries[] | .value' |paste - - - > $tdir/binance_24hr
   sed -i 's/"//g' $tdir/binance_24hr $tdir/binance_balance
@@ -309,8 +314,8 @@ if [ ${param} == "balance" ]; then
   gateio_body=""
   gateio_endpoint="api/v4/spot/accounts"
   gateio_body_hash=$(printf "$gateio_body" | openssl sha512 | awk '{print $NF}')
-  timestamp=$(date +%s)
-  gateio_sign_string="$gateio_method\n/$gateio_endpoint\n$gateio_query_string\n$gateio_body_hash\n$timestamp"
+  gateio_timestamp=$(date +%s)
+  gateio_sign_string="$gateio_method\n/$gateio_endpoint\n$gateio_query_string\n$gateio_body_hash\n$gateio_timestamp"
   gateio_signature=$(printf "$gateio_sign_string" | openssl sha512 -hmac "$gateio_secret" | awk '{print $NF}')
   curl_gateio |jq ' .[] | select(.available!="0" or .locked!="0") |.currency,.available,.locked' |paste - - - > $tdir/gateio_balance
   #curl_gateio |jq ' .[] | {symbol: .currency, available: .available, locked: .locked} | select(.available!="0" or .locked!="0") | to_entries[] | .value' |paste - - - > $tdir/gateio_balance
