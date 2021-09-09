@@ -42,6 +42,7 @@
 - Orders on gate.io (Their API doesn't support orders at market price, so I need to retrieve last price before each order)
 - More sophisticated orders.
 - Auto rebalance based on pre-configured percentages.
+- Create logs
 
 ## Test regular installation:
 
