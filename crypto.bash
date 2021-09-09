@@ -434,7 +434,7 @@ if [ ${param} == "balance" ]; then
  # Including header
  sed -i '1i\Token Amount USDT-free USDT-locked in-USDT in-BTC in-'$residential_country_currency' Last24hr Allocation' $tdir/total_final3
  # Fixing column versions compatibility due to -o, coloring, and printing
- msg "\n$(cat $tdir/total_final3 $tdir/footer |column -t $(column -h |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\\033\[0;34m/g; s/ (-[0-9\.]+%)/ \\033\[0;31m\1\\033\[0;34m/g' |tee $tdir/total_final4)"
+ msg "\n$(cat $tdir/total_final3 $tdir/footer |column -t $(column -h 2>/dev/null |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\\033\[0;34m/g; s/ (-[0-9\.]+%)/ \\033\[0;31m\1\\033\[0;34m/g' |tee $tdir/total_final4)"
 
  if [[ $exchange == "all" ]] ; then
   echo -e "Exchange USDT BTC $residential_country_currency" > $tdir/total_per_exchange
@@ -443,13 +443,13 @@ if [ ${param} == "balance" ]; then
    awk '{usdt+=$5;btc+=$6;rcc+=$7} END{print " "usdt" "btc" "rcc}' ${tdir}/${exchange}_final >> $tdir/total_per_exchange
   done
   echo "Total $(tail -1 $tdir/total_final4 |awk -F'[| ]+' '{print $5" "$6" "$7}')" >> $tdir/total_per_exchange
-  msg "\n\033[0;34m$(cat $tdir/total_per_exchange |column -t $(column -h |grep -q "\-o," && printf '%s' -o ' | ') |sed 's/|/ | /g' |grep --color ".*")\033[0m"
+  msg "\n\033[0;34m$(cat $tdir/total_per_exchange |column -t $(column -h 2>/dev/null |grep -q "\-o," && printf '%s' -o ' | ') |sed 's/|/ | /g' |grep --color ".*")\033[0m"
  fi
  if [ ! -z $fiat_deposits ]; then
   echo "Return Percentage $residential_country_currency" >> $tdir/total_result
   current_total=$(tail -1 $tdir/total_final4 |awk -F'[| ]+' '{print $7}')
   echo ">>>>> $(echo "scale=2;100 * $current_total / $fiat_deposits - 100" |bc -l)% $(echo "$current_total - $fiat_deposits" |bc -l)" >> $tdir/total_result
-  msg "\n$(cat $tdir/total_result |column -t $(column -h |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\\033\[0;34m/g; s/ (-[0-9\.]+%)/ \\033\[0;31m\1\\033\[0;34m/g')\033[0m"
+  msg "\n$(cat $tdir/total_result |column -t $(column -h 2>/dev/null |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/^/\\033\[0;34m/g; s/ (-[0-9\.]+%)/ \\033\[0;31m\1\\033\[0;34m/g')\033[0m"
  fi
  exit
 fi
@@ -458,7 +458,7 @@ if [ ${param} == "order" ]; then
 
  for symbol in `echo $symbol`; do
 
-  if [ $exchange == "binance" ] ; then
+  if echo -n $binance_key$binance_secret |wc -c |grep -Eq "^128$" && [ $exchange == "binance" ]; then
    binance_method="POST"
    binance_endpoint="api/v3/order$test"
    timestamp=$(func_timestamp)
@@ -467,11 +467,23 @@ if [ ${param} == "order" ]; then
    curl_binance
   fi
  
-  if [ $exchange == "gateio" ] ; then
+  if echo -n $gateio_key$gateio_secret |wc -c |grep -Eq "^96$" && [ $exchange == "gateio" ]; then
    # TODO
    echo "gateio order is not supported yet. I'm still thinking about it, cause they don't support orders at MARKET price :-("
   fi
 
+  if echo -n $ftx_key$ftx_secret |wc -c |grep -Eq "^80$" && [ $exchange == "ftx" ]; then
+   echo "implementing right now"
+   exit
+   if [ ! -z $test ]; then echo "Unfortunately, ftx doesn't have a test endpoint, so here we are testing only our side"; fi
+    ftx_method="POST"
+    ftx_endpoint="/api/${test}orders"
+    ftx_timestamp=$(func_timestamp)
+    ftx_query_string=""
+    ftx_body='{"market":"'${symbol}'","side":"'${side}'","price": null,"type":"market","size":'${qty}'}'
+    ftx_signature=$(echo -n "${ftx_timestamp}${ftx_method}${ftx_endpoint}${ftx_query_string}${ftx_body}" |openssl dgst -sha256 -hmac "$ftx_secret" |awk '{print $2}')
+    curl_ftx
+  fi
  done
  exit
 fi
