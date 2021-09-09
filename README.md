@@ -48,11 +48,11 @@
 
 - Regular (run help) `./crypto.bash -h`  
 
-- Doker (run help) `docker run cryptobash -h`  
+- Docker (run help) `docker run cryptobash -h`  
 
 ## Donate
 
-| Cryptocurrencies                                              | Network                   | Address                                                                                           |
-| ------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------- |
-| ![Donate USDT](https://img.shields.io/badge/Donate-USDT-blue) | Ethereum (ERC20) | `0x930379d0feDB4e3AE6c39144fCD5f29f08Ee8235`                                                      |
-| ![Donate BNB](https://img.shields.io/badge/Donate-BNB-blue)   | Binance Smart Chain (BSC) | `0xa9A739734a2F740C8f998DDFe408bC9e39E3B415`                                                      |
+| Cryptocurrencies                                              | Network                   | Address                                                  |
+| ------------------------------------------------------------- | ------------------------- | -------------------------------------------------------- |
+| ![pngfind com-cnbc-logo-png-1429336](https://user-images.githubusercontent.com/1348148/132743912-04ae31f1-2c74-492c-b7fb-f415581cea28.png)<br>  (or any ERC20) | Ethereum (ERC20) | `0x930379d0feDB4e3AE6c39144fCD5f29f08Ee8235` |
+| ![Binance-Logo wine](https://user-images.githubusercontent.com/1348148/132743946-4292efb3-5d20-41d9-955d-e26071810124.png) | Binance Smart Chain (BSC) | `0xa9A739734a2F740C8f998DDFe408bC9e39E3B415` |
