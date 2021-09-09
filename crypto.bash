@@ -31,7 +31,6 @@ Available options:
 		-p order
 		Caution: When using a list of tokenpairs, it must be the same quote pair.
 		EX: -p order binance BUY ADAUSDT,ETHUSDT,BTCUSDT |runaway]
--w, --web	Turn off progress bar. (To use with shell2http and display on web) (TODO: Explain how to use shell2http)
 
 Examples:
 
@@ -81,23 +80,19 @@ parse_params() {
   # defaults
   test=""
   param=''
-  web="false"
+  progress_bar="true"
 
   while :; do
     case "${1-}" in
-    --docker)
-      script_name="docker run cryptobash"
-      #web="true"
-      ;;
-    -h | --help) usage ;;
-    -v | --verbose) set -x ;;
+    --docker) script_name="docker run cryptobash";;
+    -h | --help) usage;;
+    -v | --verbose) set -x; progress_bar="false";;
     -t | --test) test="/test";;
-    -w | --web) web="true";;
     -p | --param)
       param="${2-}"
       shift
       ;;
-    -?*) die "Unknown option: $1" ;;
+    -?*) die "Unknown option: $1";;
     *) break ;;
     esac
     shift
@@ -422,7 +417,7 @@ if [ ${param} == "balance" ]; then
  fi
  ) &
 
- if [ $web == "false" ]; then progress_bar; else wait; fi
+ if [ $progress_bar == "true" ]; then progress_bar; else wait; fi
  # Unifying and summing up the amounts of same assets from multiple exchanges.
  awk '{a[$1]+=$2;b[$1]+=$3;c[$1]+=$4;d[$1]+=$5;e[$1]+=$6;f[$1]+=$7;g[$1]+=$8}END{for(i in a)print i, a[i], b[i], c[i], d[i], e[i], f[i], g[i]/2"%"}' $tdir/*_final > $tdir/total_final1
  # Including percentage allocation column.
