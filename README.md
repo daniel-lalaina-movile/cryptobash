@@ -7,7 +7,7 @@
 ## Example:
 - `./crypto.bash -p balance all`
 
-![2021-09-08 20-32-58](https://user-images.githubusercontent.com/1348148/132599068-14639284-e823-4360-b568-de8f263220da.gif)
+![2021-09-08 21-26-03](https://user-images.githubusercontent.com/1348148/132602950-05beff11-6369-4cda-8be0-23969e02de5d.gif)
 
 ## Regular installation:
 
