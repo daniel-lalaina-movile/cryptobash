@@ -14,7 +14,7 @@
 - `git clone git@github.com:daniel-lalaina-movile/cryptobash.git`  
 (or git clone https://github.com/daniel-lalaina-movile/cryptobash.git)
 
-- `cd bashcrypto`
+- `cd cryptobash`
 
 - `cp .credentials-example .credentials`
 
