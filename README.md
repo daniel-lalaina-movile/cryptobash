@@ -48,3 +48,10 @@
 - Regular (run help) `./crypto.bash -h`  
 
 - Doker (run help) `docker run cryptobash -h`  
+
+## Donate
+
+| Cryptocurrencies                                              | Network                   | Address                                                                                           |
+| ------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------- |
+| ![Donate USDT](https://img.shields.io/badge/Donate-USDT-blue) | Ethereum (ERC20) | `0x930379d0feDB4e3AE6c39144fCD5f29f08Ee8235`                                                      |
+| ![Donate BNB](https://img.shields.io/badge/Donate-BNB-blue)   | Binance Smart Chain (BSC) | `0xa9A739734a2F740C8f998DDFe408bC9e39E3B415`                                                      |
