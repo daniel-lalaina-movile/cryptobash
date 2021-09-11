@@ -421,11 +421,12 @@ if [ ${param} == "balance" ]; then
  num_of_exchanges=$(ls -1 ${tdir}/*_final |wc -l) 
  awk '{a[$1]+=$2;b[$1]+=$3;c[$1]+=$4;d[$1]+=$5;e[$1]+=$6;f[$1]+=$7;g[$1]+=$8}END{for(i in a)print i, a[i], b[i], c[i], d[i], e[i], f[i], g[i]/'${num_of_exchanges}'"%"}' $tdir/*_final > $tdir/total_final1
  # Including percentage allocation column.
- awk 'FNR==NR{s+=$5;next;} {printf $0" "; printf "%.2f",100*$5/s; print "%"}' $tdir/total_final1 $tdir/total_final1 |sort -n -k5 > $tdir/total_final2
+ awk 'FNR==NR{s+=$5;next;} {print $0,100*$5/s"%"}' $tdir/total_final1 $tdir/total_final1 |sort -n -k5 > $tdir/total_final2
  # Including footer with total sum of each column.
  awk '{for(i=2;i<=8;i++)a[i]+=$i;print $0} END{l="Total";i=2;while(i in a){l=l" "a[i];i++};print l" X"}' $tdir/total_final2 > $tdir/total_final3
  tail -1 $tdir/total_final3 |awk '{print $1" X "$3" "$4" "$5" "$6" "$7" X "$9}' > $tdir/footer
- sed -i '$ d' $tdir/total_final3
+ # Scaling percentages and removing insignificant amounts
+ sed -Ei 's/(\.[0-9]{2})[0-9]+?%/\1%/g; /([e-]|0\.0)[0-9]+?%$/d; $ d' $tdir/total_final3
  # Including header
  sed -i '1i\Token Amount USDT-free USDT-locked in-USDT in-BTC in-'$residential_country_currency' Last24hr Allocation' $tdir/total_final3
  # Fixing column versions compatibility due to -o, coloring, and printing
