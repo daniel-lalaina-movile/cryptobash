@@ -239,8 +239,8 @@ if [ ${param} == "runaway" ]; then
    read symbol amount_scale price_scale<<<$(grep -E "^${symbol}_USDT\s+" ${tdir}/gateio_supported_pairs || grep -E "^${symbol}_BTC\s+" $tdir/gateio_supported_pairs)
    gateio_query_string="currency_pair=$symbol"
    gateio_endpoint="api/v4/spot/tickers"
-   highest_bid=$(gateio_method="GET"; curl_gateio_public |jq -r '.[].highest_bid')
-   gateio_price=$(echo "scale=${price_scale}; $highest_bid * 0.99" |bc -l |sed -E 's/^\./0./g')
+   gateio_last_price=$(gateio_method="GET"; curl_gateio_public |jq -r '.[].last')
+   gateio_price=$(echo "scale=${price_scale}; $gateio_last_price * 0.996" |bc -l |sed -E 's/^\./0./g')
    qty=$(echo "scale=${amount_scale}; $qty / 1" |bc -l |sed -E 's/^\./0./g')
    gateio_method="POST"
    gateio_query_string=""
