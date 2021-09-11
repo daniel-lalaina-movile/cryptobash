@@ -2,7 +2,7 @@
 
 - Show your results, and the balance details represented in USDT BTC FIAT. (Binance ✔️ / Gate.io ✔️ / FTX ✔️ )
 - Sell every token asap at market price (Binance ✔️ / Gate.io ✔️ / FTX ✔️)
-- Make basic orders on specific or multiple tokens at market price (Binance ✔️ / Gate.io ❌ / FTX ❌)
+- Make basic orders on specific or multiple tokens (Binance ✔️ / Gate.io ✔️ / FTX ❌)
 
 ## Example:
 - `./crypto.bash -p balance all`
