@@ -21,7 +21,7 @@
 - Include your API credentials in .credentials file  
 (If you use only one of both exchanges, just keep the other one empty.)
 
-### Optional
+### Optional (if you want to see your results)
 
 - `cp .fiat_deposits-example .fiat_deposits`
 
@@ -37,14 +37,7 @@
 
 - `docker build -t cryptobash:latest .`
 
-## TODO:
-
-- Orders on gate.io (Their API doesn't support orders at market price, so I need to retrieve last price before each order)
-- More sophisticated orders.
-- Auto rebalance based on pre-configured percentages.
-- Create logs
-
-## Test regular installation:
+## Running:
 
 - Regular (run help) `./crypto.bash -h`  
 
@@ -56,3 +49,10 @@
 | ------------------------------------------------------------- | ------------------------- | -------------------------------------------------------- |
 | ![pngfind com-cnbc-logo-png-1429336](https://user-images.githubusercontent.com/1348148/132743912-04ae31f1-2c74-492c-b7fb-f415581cea28.png)<br>  (or any ERC20) | Ethereum (ERC20) | `0x930379d0feDB4e3AE6c39144fCD5f29f08Ee8235` |
 | ![Binance-Logo wine](https://user-images.githubusercontent.com/1348148/132743946-4292efb3-5d20-41d9-955d-e26071810124.png) | Binance Smart Chain (BSC) | `0xa9A739734a2F740C8f998DDFe408bC9e39E3B415` |
+
+## TODO:
+
+- Orders on gate.io (Their API doesn't support orders at market price, so I need to retrieve last price before each order)
+- More sophisticated orders.
+- Auto rebalance based on pre-configured percentages.
+- Create logs
