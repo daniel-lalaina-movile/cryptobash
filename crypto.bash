@@ -424,7 +424,7 @@ if [ ${param} == "balance" ]; then
  #num_of_exchanges=$(ls -1 ${tdir}/*_final |wc -l) 
  #awk '{a[$1]+=$2;b[$1]+=$3;c[$1]+=$4;d[$1]+=$5;e[$1]+=$6;f[$1]+=$7;g[$1]+=$8}END{for(i in a)print i, a[i], b[i], c[i], d[i], e[i], f[i], g[i]/'${num_of_exchanges}'"%"}' $tdir/*_final > $tdir/total_final1
  # Including percentage allocation column.
- awk '{b[$0]=$6;sum=sum+$6} END{for (i in b) print i, (b[i]/sum)*100"%"}' $tdir/*_final > $tdir/total_final1
+ awk '{b[$0]=$6;sum=sum+$6} END{for (i in b) print i, (b[i]/sum)*100"%"}' $tdir/*_final |sort -n -k6 > $tdir/total_final1
  # Including footer with total sum of each column.
  #awk '{for(i=3;i<=9;i++)a[i]+=$i;print $0} END{l="Total";i=3;while(i in a){l=l" "a[i];i++};print l" X"}' $tdir/total_final1 > $tdir/total_final2
  #tail -1 $tdir/total_final2 |awk '{print $1" "$2" X "$4" "$5" "$6" "$7" "$8" X "$10}' > $tdir/footer
