@@ -154,7 +154,7 @@ progress_bar() {
    echo -n " ] "
    kill -0 $pid 2>/dev/null || break
    echo -n "$v %" $'\r'
-   sleep 0.4
+   sleep 0.5
   done
  done
  cols=$(echo "$(tput cols) - 11" | bc -l)
@@ -317,18 +317,19 @@ if [ ${param} == "balance" ]; then
    #else
    #usdt_pair_price=$(curl_usd)
    fi
-   usdt_available=$(echo "$available * $usdt_pair_price" |bc -l)
-   usdt_locked=$(echo "$locked * $usdt_pair_price" |bc -l)
-   usdt_total=$(echo "$usdt_available + $usdt_locked" |bc -l)
+   usdt_available=$(echo "scale=2; ($available * $usdt_pair_price) / 1" |bc -l)
+   usdt_locked=$(echo "scale=2; ($locked * $usdt_pair_price) / 1" |bc -l)
+   usdt_total=$(echo "scale=2; ($usdt_available + $usdt_locked) / 1" |bc -l)
    until [ -f $tdir/usdtusd ]; do sleep 0.1; done
    usdtusd=$(head -1 $tdir/usdtusd)
    if [ $residential_country_currency == "USD" ]; then
-    fiat_total=$(echo "$usdt_total * $usdtusd" |bc -l)
+    fiat_total=$(echo "scale=2; ($usdt_total * $usdtusd) / 1" |bc -l)
    else
-    fiat_total=$(echo "$usdt_total * $usdtusd * $fiat_usd_rate" |bc -l)
+    fiat_total=$(echo "scale=2; ($usdt_total * $usdtusd * $fiat_usd_rate) / 1" |bc -l)
    fi
-   btc_total=$(echo "$usdt_total / $btcusdt" |bc -l)
-   echo $symbol $amount $usdt_available $usdt_locked $usdt_total $btc_total $fiat_total $last24hr >> $tdir/binance_final
+   btc_total=$(echo "scale=8; $usdt_total / $btcusdt" |bc -l)
+   last24hr=$(echo "scale=2; $last24hr / 1" | bc -l)
+   echo "Binance $symbol $amount $usdt_available $usdt_locked $usdt_total $btc_total $fiat_total $last24hr%" >> $tdir/binance_final
   done
  fi &
  if echo -n $gateio_key$gateio_secret |wc -c |grep -Eq "^96$" && [[ $exchange =~ gateio|all ]]; then
@@ -341,7 +342,6 @@ if [ ${param} == "balance" ]; then
   gateio_sign_string="$gateio_method\n/$gateio_endpoint\n$gateio_query_string\n$gateio_body_hash\n$gateio_timestamp"
   gateio_signature=$(printf "$gateio_sign_string" | openssl sha512 -hmac "$gateio_secret" | awk '{print $NF}')
   curl_gateio |jq ' .[] | select(.available!="0" or .locked!="0") |.currency,.available,.locked' |paste - - - > $tdir/gateio_balance
-  #curl_gateio |jq ' .[] | {symbol: .currency, available: .available, locked: .locked} | select(.available!="0" or .locked!="0") | to_entries[] | .value' |paste - - - > $tdir/gateio_balance
   gateio_endpoint="api/v4/spot/tickers"
   curl_gateio_public |jq '.[] | {symbol: .currency_pair, price: .last, last24hr: .change_percentage|tonumber} | select(.price!="0.00000000" and .price!="0.00" and .price!="0") | to_entries[] | .value' |sed 's/_//g' |paste - - - > $tdir/gateio_24hr
   sed -i 's/"//g' $tdir/gateio_24hr $tdir/gateio_balance
@@ -359,18 +359,19 @@ if [ ${param} == "balance" ]; then
   #else
    #usdt_pair_price=$(curl_usd)
    fi
-   usdt_available=$(echo "$available * $usdt_pair_price" |bc -l)
-   usdt_locked=$(echo "$locked * $usdt_pair_price" |bc -l)
-   usdt_total=$(echo "$usdt_available + $usdt_locked" |bc -l)
+   usdt_available=$(echo "scale=2; ($available * $usdt_pair_price) / 1" |bc -l)
+   usdt_locked=$(echo "scale=2; ($locked * $usdt_pair_price) / 1" |bc -l)
+   usdt_total=$(echo "scale=2; ($usdt_available + $usdt_locked) / 1" |bc -l)
    until [ -f $tdir/usdtusd ]; do sleep 0.1; done
    usdtusd=$(head -1 $tdir/usdtusd)
    if [ $residential_country_currency == "USD" ]; then
-    fiat_total=$(echo "$usdt_total * $usdtusd" |bc -l)
+    fiat_total=$(echo "scale=2; ($usdt_total * $usdtusd) / 1" |bc -l)
    else
-    fiat_total=$(echo "$usdt_total * $usdtusd * $fiat_usd_rate" |bc -l)
+    fiat_total=$(echo "scale=2; ($usdt_total * $usdtusd * $fiat_usd_rate) / 1" |bc -l)
    fi
-   btc_total=$(echo "$usdt_total / $btcusdt" |bc -l)
-   echo $symbol $amount $usdt_available $usdt_locked $usdt_total $btc_total $fiat_total $last24hr >> $tdir/gateio_final
+   btc_total=$(echo "scale=8; $usdt_total / $btcusdt" |bc -l)
+   last24hr=$(echo "scale=2; $last24hr / 1" | bc -l)
+   echo "Gateio $symbol $amount $usdt_available $usdt_locked $usdt_total $btc_total $fiat_total $last24hr%" >> $tdir/gateio_final
   done
  fi &
  if echo -n $ftx_key$ftx_secret |wc -c |grep -Eq "^80$" && [[ $exchange =~ ftx|all ]]; then
@@ -403,50 +404,52 @@ if [ ${param} == "balance" ]; then
    #else
    #usdt_pair_price=$(curl_usd)
    fi
-   usdt_available=$(echo "$available * $usdt_pair_price" |bc -l)
-   usdt_locked=$(echo "($total - $available) * $usdt_pair_price" |bc -l)
-   usdt_total=$(echo "$usdt_available + $usdt_locked" |bc -l)
+   usdt_available=$(echo "scale=2; ($available * $usdt_pair_price) / 1" |bc -l)
+   usdt_locked=$(echo "scale=2; (($total - $available) * $usdt_pair_price) / 1" |bc -l)
+   usdt_total=$(echo "scale=2; ($usdt_available + $usdt_locked) / 1" |bc -l)
    if [ $residential_country_currency == "USD" ]; then
     fiat_total=$usd
    else
-    fiat_total=$(echo "$usdt_total * $usdtusd * $fiat_usd_rate" |bc -l)
+    fiat_total=$(echo "scale=2; ($usdt_total * $usdtusd * $fiat_usd_rate) / 1" |bc -l)
    fi
-   btc_total=$(echo "$usdt_total / $btcusdt" |bc -l)
-   echo $symbol $amount $usdt_available $usdt_locked $usdt_total $btc_total $fiat_total $last24hr >> $tdir/ftx_final
+   btc_total=$(echo "scale=8; $usdt_total / $btcusdt" |bc -l)
+   last24hr=$(echo "scale=2; $last24hr / 1" | bc -l)
+   echo "Ftx $symbol $amount $usdt_available $usdt_locked $usdt_total $btc_total $fiat_total $last24hr%" >> $tdir/ftx_final
   done
  fi
  ) &
 
  if [ $progress_bar == "true" ]; then progress_bar; else wait; fi
  # Unifying and summing up the amounts of same assets from multiple exchanges.
- num_of_exchanges=$(ls -1 ${tdir}/*_final |wc -l) 
- awk '{a[$1]+=$2;b[$1]+=$3;c[$1]+=$4;d[$1]+=$5;e[$1]+=$6;f[$1]+=$7;g[$1]+=$8}END{for(i in a)print i, a[i], b[i], c[i], d[i], e[i], f[i], g[i]/'${num_of_exchanges}'"%"}' $tdir/*_final > $tdir/total_final1
+ #num_of_exchanges=$(ls -1 ${tdir}/*_final |wc -l) 
+ #awk '{a[$1]+=$2;b[$1]+=$3;c[$1]+=$4;d[$1]+=$5;e[$1]+=$6;f[$1]+=$7;g[$1]+=$8}END{for(i in a)print i, a[i], b[i], c[i], d[i], e[i], f[i], g[i]/'${num_of_exchanges}'"%"}' $tdir/*_final > $tdir/total_final1
  # Including percentage allocation column.
- awk 'FNR==NR{s+=$5;next;} {print $0,100*$5/s"%"}' $tdir/total_final1 $tdir/total_final1 |sort -n -k5 > $tdir/total_final2
+ awk '{b[$0]=$6;sum=sum+$6} END{for (i in b) print i, (b[i]/sum)*100"%"}' $tdir/*_final > $tdir/total_final1
  # Including footer with total sum of each column.
- awk '{for(i=2;i<=8;i++)a[i]+=$i;print $0} END{l="Total";i=2;while(i in a){l=l" "a[i];i++};print l" X"}' $tdir/total_final2 > $tdir/total_final3
- tail -1 $tdir/total_final3 |awk '{print $1" X "$3" "$4" "$5" "$6" "$7" X "$9}' > $tdir/footer
+ #awk '{for(i=3;i<=9;i++)a[i]+=$i;print $0} END{l="Total";i=3;while(i in a){l=l" "a[i];i++};print l" X"}' $tdir/total_final1 > $tdir/total_final2
+ #tail -1 $tdir/total_final2 |awk '{print $1" "$2" X "$4" "$5" "$6" "$7" "$8" X "$10}' > $tdir/footer
  # Scaling percentages and removing insignificant amounts
- sed -Ei 's/(\.[0-9]{2})[0-9]+?%/\1%/g; /([e-]|0\.0)[0-9]+?%$/d; $ d' $tdir/total_final3
+ #sed -Ei 's/(\.[0-9]{2})[0-9]+?%/\1%/g; /([e-]|0\.0)[0-9]+?%$/d; $ d' $tdir/total_final1
+ sed -Ei 's/ (-)?\./ \10./g; s/\.0+ / /g; s/(\.[0-9]+?[1-9]+)[0]+ /\1 /g; s/(\.[0-9]{2})[0-9]+?%/\1%/g; /([e-]|0\.0| 0)[0-9]+?%$/d' $tdir/total_final1
  # Including header
- sed -i '1i\Token Amount USDT-free USDT-locked in-USDT in-BTC in-'$residential_country_currency' Last24hr Allocation' $tdir/total_final3
+ sed -i '1i\Exchange Token Amount USDT-free USDT-locked in-USDT in-BTC in-'$residential_country_currency' Last24hr Allocation' $tdir/total_final1
  # Fixing column versions compatibility due to -o, coloring, and printing
- msg "\n$(cat $tdir/total_final3 $tdir/footer |column -t $(column -h 2>/dev/null |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/Token/\\033\[0;34mToken/g; s/Allocation/Allocation\\033\[0m/g; s/ (-[0-9\.]+%)/ \\033\[0;31m\1\\033\[0m/g; s/ ([0-9\.]+%)\ / \\033\[0;32m\1\ \\033\[0m/g' |tee $tdir/total_final4)\033[0m"
+ msg "\n$(cat $tdir/total_final1 |column -t $(column -h 2>/dev/null |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/Exchange/\\033\[0;34mExchange/g; s/Allocation/Allocation\\033\[0m/g; s/ (-[0-9\.]+%)/ \\033\[0;31m\1\\033\[0m/g; s/ ([0-9\.]+%) / \\033\[0;32m\1 \\033\[0m/g' |tee $tdir/total_final2)\033[0m"
 
  if [[ $exchange == "all" ]] ; then
   echo -e "Exchange USDT BTC $residential_country_currency" > $tdir/total_per_exchange
   for exchange in `ls -1 ${tdir}/*_final |sed -E 's/(^.*\/|_final)//g'`; do
-   echo -n "${exchange^}" >> $tdir/total_per_exchange
-   awk '{usdt+=$5;btc+=$6;rcc+=$7} END{print " "usdt" "btc" "rcc}' ${tdir}/${exchange}_final >> $tdir/total_per_exchange
+   #echo -n "${exchange^}" >> $tdir/total_per_exchange
+   awk '{exchange=$1;usdt+=$6;btc+=$7;rcc+=$8} END{print exchange" "usdt" "btc" "rcc}' ${tdir}/${exchange}_final >> $tdir/total_per_exchange
   done
-  echo "Total $(tail -1 $tdir/total_final4 |awk -F'[| ]+' '{print $5" "$6" "$7}')" >> $tdir/total_per_exchange
-  msg "\n$(cat $tdir/total_per_exchange |column -t $(column -h 2>/dev/null |grep -q "\-o," && printf '%s' -o ' | ') |sed 's/|/ | /g' |grep --color ".*")"
+  echo "Total $(awk '{usdt+=$6;btc+=$7;rcc+=$8} END{print " "usdt" "btc" "rcc}' ${tdir}/*_final)" >> $tdir/total_per_exchange
+  msg "\n$(cat $tdir/total_per_exchange |column -t $(column -h 2>/dev/null |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/Exchange/\\033\[0;34mExchange/g; s/'${residential_country_currency}'/'${residential_country_currency}'\\033\[0m/g')"
  fi
  if [ ! -z $fiat_deposits ]; then
   echo "Return Percentage $residential_country_currency" >> $tdir/total_result
-  current_total=$(tail -1 $tdir/total_final4 |awk -F'[| ]+' '{print $7}')
+  current_total=$(tail -1 $tdir/total_per_exchange |awk -F'[| ]+' '{print $4}')
   echo ">>>>> $(echo "scale=2;100 * $current_total / $fiat_deposits - 100" |bc -l)% $(echo "$current_total - $fiat_deposits" |bc -l)" >> $tdir/total_result
-  msg "\n$(cat $tdir/total_result |column -t $(column -h 2>/dev/null |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g')"
+  msg "\n$(cat $tdir/total_result |column -t $(column -h 2>/dev/null |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/Return/\\033\[0;34mReturn/g; s/'${residential_country_currency}'/'${residential_country_currency}'\\033\[0m/g')"
  fi
  exit
 fi
