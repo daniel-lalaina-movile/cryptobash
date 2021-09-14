@@ -119,7 +119,7 @@ parse_params() {
   fi
   if [ ${param} == "order" ]; then
    side=$(echo ${@-} |grep -oP "\b(SELL|BUY)\b" || die "SIDE argument is required for param order.\nExamples:\n${script_name} -p order SELL ADA_USDT 30")
-   symbol=$(echo ${@-} |grep -oP "\b[A-Z0-9]+(USDT|BTC)\b" || die "SYMBOL argument is required for param order. Examples\nTo SELL 30 USDT of ADA:\n${script_name} -p order SELL ADA_USDT 30\nTo buy 30 USDT of each ADA,SOL,LUNA:\n${script_name} -p order SELL ADA_USDT,SOLUSDT,LUNAUSDT 30")
+   symbol=$(echo ${@-} |grep -oP "\b[A-Z0-9]+_(USDT|BTC)\b" || die "SYMBOL argument is required for param order. Examples\nTo SELL 30 USDT of ADA:\n${script_name} -p order SELL ADA_USDT 30\nTo buy 30 USDT of each ADA,SOL,LUNA:\n${script_name} -p order SELL ADA_USDT,SOLUSDT,LUNAUSDT 30")
    qty=$(echo ${@-} |grep -oP "\b[0-9.]+\b" || die "QUOTEQTY argument (which is the amount you want to spend, not the ammount of coins you want to buy/sell) is required for param order.\nExamples:\n/$script_name -p order SELL ADA_USDT 30")
    exchange=$(echo ${@-} |grep -oPi "(binance|gateio|ftx)" || die "Exchange argument is required for param order.\nExamples:\n${script_name} -p order binance SELL ADA_USDT 30\n${script_name} -p order gateio SELL ADA_USDT 30\n${script_name} -p order ftx SELL ADA_USDT 30")
   fi
@@ -241,8 +241,8 @@ if [ ${param} == "runaway" ]; then
    gateio_query_string="currency_pair=$symbol"
    gateio_endpoint="api/v4/spot/tickers"
    gateio_last_price=$(gateio_method="GET"; curl_gateio_public |jq -r '.[].last')
-   gateio_price=$(echo "scale=${price_scale}; $gateio_last_price * 0.996" |bc -l |sed -E 's/^\./0./g')
-   qty=$(echo "scale=${amount_scale}; $qty / 1" |bc -l |sed -E 's/^\./0./g')
+   gateio_price=$(echo "scale=${price_scale}; $gateio_last_price * 0.997" |bc -l |sed -E 's/^\./0./g')
+   qty=$(echo "scale=${amount_scale}; $qty / $gateio_price" |bc -l |sed -E 's/^\./0./g')
    gateio_method="POST"
    gateio_query_string=""
    gateio_endpoint="spot/${test}order"
@@ -271,8 +271,8 @@ if [ ${param} == "runaway" ]; then
    qty=$(echo $qty |awk '{printf "%F",$1+0}')
    sizeIncrement=$(echo $sizeIncrement |awk '{printf "%F",$1+0}')
    if echo "$qty < $sizeIncrement" |bc -l |grep -q 1; then continue; fi
-   stepSize=$(echo $stepSize |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
-   decimal=$(echo "1 / $stepSize" |bc -l |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
+   stepSize=$(echo $sizeIncrement |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
+   decimal=$(echo "1 / $sizeIncrement" |bc -l |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
    qty_dec=$(echo "$qty * $decimal" |bc -l |sed -E 's/\..*//g') 
    qty=$(echo "$qty_dec / $decimal" |bc -l |sed -E 's/\.0+$//g; s/^\./0./g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
    ftx_method="POST"
@@ -420,16 +420,9 @@ if [ ${param} == "balance" ]; then
  ) &
 
  if [ $progress_bar == "true" ]; then progress_bar; else wait; fi
- # Unifying and summing up the amounts of same assets from multiple exchanges.
- #num_of_exchanges=$(ls -1 ${tdir}/*_final |wc -l) 
- #awk '{a[$1]+=$2;b[$1]+=$3;c[$1]+=$4;d[$1]+=$5;e[$1]+=$6;f[$1]+=$7;g[$1]+=$8}END{for(i in a)print i, a[i], b[i], c[i], d[i], e[i], f[i], g[i]/'${num_of_exchanges}'"%"}' $tdir/*_final > $tdir/total_final1
  # Including percentage allocation column.
  awk '{b[$0]=$6;sum=sum+$6} END{for (i in b) print i, (b[i]/sum)*100"%"}' $tdir/*_final |sort -n -k6 > $tdir/total_final1
- # Including footer with total sum of each column.
- #awk '{for(i=3;i<=9;i++)a[i]+=$i;print $0} END{l="Total";i=3;while(i in a){l=l" "a[i];i++};print l" X"}' $tdir/total_final1 > $tdir/total_final2
- #tail -1 $tdir/total_final2 |awk '{print $1" "$2" X "$4" "$5" "$6" "$7" "$8" X "$10}' > $tdir/footer
  # Scaling percentages and removing insignificant amounts
- #sed -Ei 's/(\.[0-9]{2})[0-9]+?%/\1%/g; /([e-]|0\.0)[0-9]+?%$/d; $ d' $tdir/total_final1
  sed -Ei 's/ (-)?\./ \10./g; s/\.0+ / /g; s/(\.[0-9]+?[1-9]+)[0]+ /\1 /g; s/(\.[0-9]{2})[0-9]+?%/\1%/g; /([e-]|0\.0| 0)[0-9]+?%$/d' $tdir/total_final1
  # Including header
  sed -i '1i\Exchange Token Amount USDT-free USDT-locked in-USDT in-BTC in-'$residential_country_currency' Last24hr Allocation' $tdir/total_final1
@@ -439,7 +432,6 @@ if [ ${param} == "balance" ]; then
  if [[ $exchange == "all" ]] ; then
   echo -e "Exchange USDT BTC $residential_country_currency" > $tdir/total_per_exchange
   for exchange in `ls -1 ${tdir}/*_final |sed -E 's/(^.*\/|_final)//g'`; do
-   #echo -n "${exchange^}" >> $tdir/total_per_exchange
    awk '{exchange=$1;usdt+=$6;btc+=$7;rcc+=$8} END{print exchange" "usdt" "btc" "rcc}' ${tdir}/${exchange}_final >> $tdir/total_per_exchange
   done
   echo "Total $(awk '{usdt+=$6;btc+=$7;rcc+=$8} END{print " "usdt" "btc" "rcc}' ${tdir}/*_final)" >> $tdir/total_per_exchange
@@ -461,6 +453,7 @@ if [ ${param} == "order" ]; then
    gateio_query_string=""
    gateio_endpoint="api/v4/spot/currency_pairs"
    curl_gateio_public |jq -r '.[] |.id,.amount_precision,.precision' |paste - - - > $tdir/gateio_supported_pairs
+ fi
 
  for symbol in `echo $symbol`; do
 
@@ -480,13 +473,15 @@ if [ ${param} == "order" ]; then
    gateio_query_string="currency_pair=$symbol"
    gateio_endpoint="api/v4/spot/tickers"
    gateio_last_price=$(gateio_method="GET"; curl_gateio_public |jq -r '.[].last')
-   if echo $side |grep -i sell; then calc="0.996"; else calc="1.004"; fi
-   gateio_price=$(echo "scale=${price_scale}; $gateio_last_price * $calc" |bc -l |sed -E 's/^\./0./g')
-   qty=$(echo "scale=${amount_scale}; $qty / 1" |bc -l |sed -E 's/^\./0./g')
+   if echo $side |grep -i sell; then calc="0.997"; else calc="1.003"; fi
+   gateio_price=$(echo "scale=${price_scale}; ($gateio_last_price * $calc) / 1" |bc -l |sed -E 's/^\./0./g')
+   qty=$(echo "scale=${amount_scale}; $qty / $gateio_price" |bc -l |sed -E 's/^\./0./g')
    gateio_method="POST"
    gateio_query_string=""
    gateio_endpoint="spot/${test}order"
    gateio_body='{"currency_pair":"'$symbol'","side":"'${side}'","amount":"'$qty'","price":"'$gateio_price'"}'
+   echo $gateio_body
+   exit
    gateio_body_hash=$(printf "$gateio_body" | openssl sha512 | awk '{print $NF}')
    gateio_timestamp=$(date +%s)
    gateio_sign_string="$gateio_method\n/$gateio_endpoint\n$gateio_query_string\n$gateio_body_hash\n$gateio_timestamp"
