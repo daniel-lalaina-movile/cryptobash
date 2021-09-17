@@ -8,6 +8,7 @@ trap cleanup SIGINT SIGTERM ERR EXIT
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)
 script_name="./$(basename "${BASH_SOURCE[0]}")"
 tdir=$script_dir/temp
+rebalance_file=$script_dir/.rebalance
 
 binance_uri="api.binance.com"
 gateio_uri="api.gateio.ws"
@@ -19,7 +20,7 @@ LC_NUMERIC="en_US.UTF-8"
 
 usage() {
  cat << EOF
-Usage: ${script_name} [-h] [-v] [-t] -p <order|balance|runaway> arg1 [arg2...]
+Usage: ${script_name} [-h] [-v] [-t] -p <order|overview|rebalance|runaway> arg1 [arg2...]
 
 Available options:
 
@@ -27,9 +28,10 @@ Available options:
 -v, --verbose   Run with debug
 -t, --test      Use Binance test endpoint. (Works with "order" or "runaway" params)
 -p, --param     Main action parameter
-		-p balance
-		-p order
-                -p runaway
+		-p overview  (show your balance)
+		-p order  (buy/sell token(s))
+                -p runaway  (sell everything asap)
+		-p rebalance  (rebalance your portfolio based on pre-configured amounts)
 
 Examples:
 
@@ -44,10 +46,10 @@ $script_name -p order gateio BUY ADA_USDT,ETH_USDT,BTC_USDT 50
 $script_name -p order ftx BUY ADA_USDT,ETH_USDT,BTC_USDT 50
 
 Show your balance.
-$script_name -p balance all
-$script_name -p balance binance
-$script_name -p balance gateio
-$script_name -p balance ftx
+$script_name -p overview all
+$script_name -p overview binance
+$script_name -p overview gateio
+$script_name -p overview ftx
 
 Sell every token that you have, at market price.
 $script_name -p runaway binance
@@ -80,6 +82,8 @@ parse_params() {
   test=""
   param=''
   progress_bar="true"
+  ftx_query_string=""
+  gateio_query_string=""
 
   while :; do
     case "${1-}" in
@@ -113,9 +117,9 @@ parse_params() {
 
   # Checking required params and arguments
 
-  if [[ "${param}" != @(order|balance|runaway) ]]; then die "Missing main parameter: -p <order|balance|runaway>"; fi
-  if [[ "${param}" == @(balance|runaway) ]]; then
-   exchange=$(echo ${@-} |grep -oPi "(binance|gateio|ftx|all)" || die "Exchange argument is required for param runaway.\nEx\n${script_name} -p runaway binance\n${script_name} -p runaway gateio\n${script_name} -p runaway all")
+  if [[ "${param}" != @(order|overview|rebalance|runaway) ]]; then die "Missing main parameter: -p <order|overview|rebalance|runaway>"; fi
+  if [[ "${param}" == @(overview|rebalance|runaway) ]]; then
+   exchange=$(echo ${@-} |grep -oPi "(binance|gateio|ftx|all)" || die "Exchange argument is required for param ${param}.\nEx\n${script_name} -p ${param} binance\n${script_name} -p ${param} gateio\n${script_name} -p ${param} all")
   fi
   if [ ${param} == "order" ]; then
    side=$(echo ${@-} |grep -oP "\b(SELL|BUY)\b" || die "SIDE argument is required for param order.\nExamples:\n${script_name} -p order SELL ADA_USDT 30")
@@ -140,7 +144,7 @@ msg "\033[0;34m
 ╚═════╝ ╚══════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝    ╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝
 \033[0m"
 }
-if [ ! ${param} == "balance" ]; then banner; fi
+if [ ! ${param} == "overview" ]; then banner; fi
 
 progress_bar() {
  pid=$!
@@ -165,66 +169,92 @@ func_timestamp() {
  echo -n $(($(date +%s%N)/1000000))
 }
 
-curl_usd() {
-  fiat_usd_rate="$(curl -s -H 'user-agent: Mozilla' -H 'Accept-Language: en-US,en;q=0.9,it;q=0.8' "https://www.google.com/search?q=1+usd+to+$residential_country_currency" |grep -oP "USD = [0-9]+\\.[0-9]+ $residential_country_currency" |head -n1 |grep -oP "[0-9]+\\.[0-9]+" |tr -d '\n')"
+curl_fiat_usd_rate() {
+ curl -s -H 'user-agent: Mozilla' -H 'Accept-Language: en-US,en;q=0.9,it;q=0.8' "https://www.google.com/search?q=1+usd+to+$residential_country_currency" |grep -oP "USD = [0-9]+\\.[0-9]+ $residential_country_currency" |head -n1 |grep -oP "[0-9]+\\.[0-9]+" |tr -d '\n'
+ return
 }
 
 curl_binance() {
  curl -s -X $binance_method -H "X-MBX-APIKEY: $binance_key" "https://$binance_uri/$binance_endpoint?$binance_query_string&signature=$binance_signature"
+ return
 }
 
 curl_binance_public() {
- curl -s -X $binance_method "https://$binance_uri/$binance_endpoint?"
+ curl -s "https://$binance_uri/$binance_endpoint?"
+ return
 }
 
 curl_gateio() {
  curl -s -X $gateio_method -H "Timestamp: $gateio_timestamp" -H "KEY: $gateio_key" -H "SIGN: $gateio_signature" "https://$gateio_uri/$gateio_endpoint?"
+ return
 }
 
 curl_gateio_public() {
- curl -s -X $gateio_method "https://$gateio_uri/$gateio_endpoint?$gateio_query_string"
+ curl -s "https://$gateio_uri/$gateio_endpoint?$gateio_query_string"
+ return
 }
 
 curl_ftx() {
  curl -s -X $ftx_method -H "FTX-TS: $ftx_timestamp" -H "FTX-KEY: $ftx_key" -H "FTX-SIGN: $ftx_signature" "https://${ftx_uri}${ftx_endpoint}"
+ return
 }
 
 curl_ftx_public() {
- curl -s -X $ftx_method "https://${ftx_uri}${ftx_endpoint}?$ftx_query_string"
+ curl -s "https://${ftx_uri}${ftx_endpoint}$ftx_query_string"
+ return
 }
 
-if [ ${param} == "runaway" ]; then
- if [ -z $test ]; then read -p "Are you sure? This will convert all your assets to USDT (y/n)" -n 1 -r; if [[ ! $REPLY =~ ^[Yy]$ ]]; then exit; fi; fi
- if echo -n $binance_key$binance_secret |wc -c |grep -Eq "^128$" && [[ $exchange =~ binance|all ]]; then
-  binance_method="GET"
+get_24hr() {
+ if [[ $1 == "binance" ]]; then
+  binance_endpoint="api/v3/ticker/24hr"
+  curl_binance_public |jq -r '.[] | {symbol: .symbol, price: .lastPrice, last24hr: .priceChangePercent|tonumber} | select(.price!="0.00000000" and .price!="0.00" and .price!="0") | to_entries[] | .value' |paste - - - > $tdir/binance_24hr
+
+ elif [[ $1 == "gateio" ]]; then
+  gateio_endpoint="api/v4/spot/tickers"
+  curl_gateio_public |jq -r '.[] | {symbol: .currency_pair, price: .last, last24hr: .change_percentage|tonumber} | select(.price!="0.00000000" and .price!="0.00" and .price!="0") | to_entries[] | .value' |sed 's/_//g' |paste - - - > $tdir/gateio_24hr
+
+ elif [[ $1 == "ftx" ]]; then
+  ftx_endpoint="/api/markets"
+  curl_ftx_public |jq -r '.result | .[] | .name,.price,.change24h' |paste - - - |grep "/" |sed 's/\///g' > $tdir/ftx_24hr
+
+ else
+  die "$1 exchange doesn't exist"
+ fi
+ return
+}
+
+get_supported_pairs() {
+ if [[ $1 == "binance" ]]; then
   binance_endpoint="api/v1/exchangeInfo"
-  curl_binance_public |jq '.symbols | .[] | [{symbol: .symbol, filter: .filters}] | .[] |del(.filter[] | select(.filterType != "LOT_SIZE"))' |grep -E 'symbol|stepSize' |sed 's/^.*: "//g; s/".*//g' |paste - - > $tdir/binance_exchangeInfo
+  [ -f $tdir/binance_supported_pairs ] || \
+    curl_binance_public |jq '.symbols | .[] | [{symbol: .symbol, filter: .filters}] | .[] |del(.filter[] | select(.filterType != "LOT_SIZE"))' |grep -E 'symbol|stepSize' |sed 's/^.*: "//g; s/".*//g' |paste - - > $tdir/binance_supported_pairs
+
+ elif [[ $1 == "gateio" ]]; then
+  gateio_endpoint="api/v4/spot/currency_pairs"
+  [ -f $tdir/gateio_supported_pairs ] || \
+  curl_gateio_public |jq -r '.[] |.id,.amount_precision,.precision' |paste - - - > $tdir/gateio_supported_pairs
+
+ elif [[ $1 == "ftx" ]]; then
+  ftx_endpoint="/api/markets"
+  [ -f $tdir/ftx_supported_pairs ] || \
+  curl_ftx_public |jq -r '.result |del(.[] | select(.type != "spot")) | .[] | .name,.sizeIncrement' |paste - - > $tdir/ftx_supported_pairs
+
+ else
+  die "$1 exchange doesn't exist"
+ fi
+ return
+}
+
+get_overview() {
+ if [[ $1 == "binance" ]]; then
+  binance_method="GET"
   binance_endpoint="sapi/v1/capital/config/getall"
   binance_timestamp=$(func_timestamp)
   binance_query_string="timestamp=$binance_timestamp"
   binance_signature=$(echo -n "$binance_query_string" |openssl dgst -sha256 -hmac "$binance_secret" |awk '{print $2}')
-  curl_binance |jq -r '.[] |select((.free|tonumber>0.0001) and (.coin!="USDT")) |.coin,.free' |paste - - |while read symbol qty; do
-   read symbol stepSize<<<$(grep -E "^${symbol}USDT\s+" $tdir/binance_exchangeInfo || grep -E "^${symbol}BTC\s+" $tdir/binance_exchangeInfo)
-   if echo "$qty < $stepSize" |bc -l |grep -q 1; then continue; fi
-   stepSize=$(echo $stepSize |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
-   decimal=$(echo "1 / $stepSize" |bc -l |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
-   qty_dec=$(echo "$qty * $decimal" |bc -l |sed -E 's/\..*//g') 
-   qty=$(echo "$qty_dec / $decimal" |bc -l |sed -E 's/\.0+$//g; s/^\./0./g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
-   binance_method="POST"
-   binance_endpoint="api/v3/order$test"
-   binance_timestamp=$(func_timestamp)
-   binance_query_string="quantity=$qty&symbol=${symbol}&side=SELL&type=MARKET&timestamp=$binance_timestamp"
-   binance_signature=$(echo -n "$binance_query_string" |openssl dgst -sha256 -hmac "$binance_secret" |awk '{print $2}')
-   curl_binance |grep -v "Invalid symbol" || \
-    binance_method="POST" 
-    binance_timestamp=$(func_timestamp)
-    binance_query_string="quantity=$qty&symbol=${symbol}&side=SELL&type=MARKET&timestamp=$binance_timestamp" \
-    binance_signature=$(echo -n "$binance_query_string" |openssl dgst -sha256 -hmac "$binance_secret" |awk '{print $2}') \
-    curl_binance &
-  done
- fi &
- if echo -n $gateio_key$gateio_secret |wc -c |grep -Eq "^96$" && [[ $exchange =~ gateio|all ]]; then
-  if [ ! -z $test ]; then echo "Unfortunately, gate.io doesn't have a test endpoint, so here we are testing only our side"; fi
+  curl_binance
+
+ elif [[ $1 == "gateio" ]]; then
   gateio_method="GET"
   gateio_query_string=""
   gateio_endpoint="api/v4/spot/accounts"
@@ -233,78 +263,101 @@ if [ ${param} == "runaway" ]; then
   gateio_timestamp=$(date +%s)
   gateio_sign_string="$gateio_method\n/$gateio_endpoint\n$gateio_query_string\n$gateio_body_hash\n$gateio_timestamp"
   gateio_signature=$(printf "$gateio_sign_string" | openssl sha512 -hmac "$gateio_secret" | awk '{print $NF}')
-  curl_gateio |jq -r ' .[] | select((.available!="0") and (.currency!="USDT")) |.currency,.available' |paste - - > $tdir/gateio_balance
-  gateio_endpoint="api/v4/spot/currency_pairs"
-  curl_gateio_public |jq -r '.[] |.id,.amount_precision,.precision' |paste - - - > $tdir/gateio_supported_pairs
-  cat $tdir/gateio_balance | grep -Ev "^(USDT|USDC|BUSD)" |while read symbol qty; do
-   read symbol amount_scale price_scale<<<$(grep -E "^${symbol}_USDT\s+" ${tdir}/gateio_supported_pairs || grep -E "^${symbol}_BTC\s+" $tdir/gateio_supported_pairs)
-   gateio_query_string="currency_pair=$symbol"
-   gateio_endpoint="api/v4/spot/tickers"
-   gateio_last_price=$(gateio_method="GET"; curl_gateio_public |jq -r '.[].last')
-   gateio_price=$(echo "scale=${price_scale}; $gateio_last_price * 0.997" |bc -l |sed -E 's/^\./0./g')
-   qty=$(echo "scale=${amount_scale}; $qty / $gateio_price" |bc -l |sed -E 's/^\./0./g')
-   gateio_method="POST"
-   gateio_query_string=""
-   gateio_endpoint="spot/${test}order"
-   gateio_body='{"currency_pair":"'$symbol'","side":"sell","amount":"'$qty'","price":"'$gateio_price'"}'
-   gateio_body_hash=$(printf "$gateio_body" | openssl sha512 | awk '{print $NF}')
-   gateio_timestamp=$(date +%s)
-   gateio_sign_string="$gateio_method\n/$gateio_endpoint\n$gateio_query_string\n$gateio_body_hash\n$gateio_timestamp"
-   gateio_signature=$(printf "$gateio_sign_string" | openssl sha512 -hmac "$gateio_secret" | awk '{print $NF}')
-   curl_gateio
-  done
- fi &
- if echo -n $ftx_key$ftx_secret |wc -c |grep -Eq "^80$" && [[ $exchange =~ ftx|all ]]; then
-  if [ ! -z $test ]; then echo "Unfortunately, ftx doesn't have a test endpoint, so here we are testing only our side"; fi
+  curl_gateio
+
+ elif [[ $1 == "ftx" ]]; then
   ftx_method="GET"
   ftx_endpoint="/api/wallet/balances"
   ftx_timestamp=$(func_timestamp)
   ftx_query_string=""
   ftx_body=""
   ftx_signature=$(echo -n "${ftx_timestamp}${ftx_method}${ftx_endpoint}${ftx_query_string}${ftx_body}" |openssl dgst -sha256 -hmac "$ftx_secret" |awk '{print $2}')
-  curl_ftx |jq -r '.result | .[] |select(.total!=0) | .coin,.free' |paste - - > $tdir/ftx_balance
-  ftx_endpoint="/api/markets"
-  curl_ftx_public |jq -r '.result |del(.[] | select(.type != "spot")) | .[] | .name,.sizeIncrement' |paste - - > $tdir/ftx_markets
-  cat $tdir/ftx_balance | grep -Ev "^(USDT?|USDC|BUSD)" |while read symbol qty; do
-   read symbol sizeIncrement<<<$(grep -E "^${symbol}\/USDT?\s+" ${tdir}\/ftx_markets || grep -E "^${symbol}\/BTC\s+" $tdir/ftx_markets)
-   # scientific notation to regular float
-   qty=$(echo $qty |awk '{printf "%F",$1+0}')
-   sizeIncrement=$(echo $sizeIncrement |awk '{printf "%F",$1+0}')
-   if echo "$qty < $sizeIncrement" |bc -l |grep -q 1; then continue; fi
-   stepSize=$(echo $sizeIncrement |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
-   decimal=$(echo "1 / $sizeIncrement" |bc -l |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
-   qty_dec=$(echo "$qty * $decimal" |bc -l |sed -E 's/\..*//g') 
-   qty=$(echo "$qty_dec / $decimal" |bc -l |sed -E 's/\.0+$//g; s/^\./0./g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
-   ftx_method="POST"
-   ftx_endpoint="/api/${test}orders"
-   ftx_timestamp=$(func_timestamp)
-   ftx_query_string=""
-   ftx_body='{"market":"'${symbol}'","side":"sell","price": null,"type":"market","size":'${qty}'}'
-   ftx_signature=$(echo -n "${ftx_timestamp}${ftx_method}${ftx_endpoint}${ftx_query_string}${ftx_body}" |openssl dgst -sha256 -hmac "$ftx_secret" |awk '{print $2}')
-   curl_ftx
-  done
- fi
- exit
-fi
+  curl_ftx
 
-if [ ${param} == "balance" ]; then
+ else
+  die "$1 exchange doesn't exist"
+ fi
+ return
+}
+
+new_order() {
+if [[ $1 == "binance" ]]; then
+  if [[ $4 == "quoteQty" ]]; then qtyType="quoteOrderQty"; qty=$5; elif [[ $4 == "baseQty" ]]; then qtyType=quantity; echo "TODO: descobrir quantity pelo quoteOrderQty"; else die "Unknown $1 qtyType" ; fi
+  get_supported_pairs binance
+  read token_pair stepSize<<<$(grep -E "^${3}\s+" $tdir/binance_supported_pairs || grep -E "^${3}USDT\s+" $tdir/binance_supported_pairs || grep -E "^${3}BTC\s+" $tdir/binance_supported_pairs)
+  if echo "$qty < $stepSize" |bc -l |grep -q "^1$"; then continue; fi
+  stepSize=$(echo $stepSize |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
+  decimal=$(echo "1 / $stepSize" |bc -l |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
+  qty_dec=$(echo "$5 * $decimal" |bc -l |sed -E 's/\..*//g')
+  qty=$(echo "$qty_dec / $decimal" |bc -l |sed -E 's/\.0+$//g; s/^\./0./g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
+  binance_method="POST"
+  binance_endpoint="api/v3/order$test"
+  binance_timestamp=$(func_timestamp)
+  binance_query_string="$qtyType=$qty&symbol=${token_pair}&side=$2&type=MARKET&timestamp=$binance_timestamp"
+  binance_signature=$(echo -n "$binance_query_string" |openssl dgst -sha256 -hmac "$binance_secret" |awk '{print $2}')
+  if [ ! -z $test ]; then echo $binance_query_string; else curl_binance; fi
+
+elif [[ $1 == "gateio" ]]; then
+  get_supported_pairs gateio
+  read token_pair amount_scale price_scale<<<$(grep -E "^${3}\s+" $tdir/gateio_supported_pairs || grep -E "^${3}_USDT\s+" ${tdir}/gateio_supported_pairs || grep -E "^${3}_BTC\s+" $tdir/gateio_supported_pairs)
+  gateio_query_string="currency_pair=$token_pair"
+  gateio_endpoint="api/v4/spot/tickers"
+  gateio_last_price=$(curl_gateio_public |jq -r '.[].last')
+  if [[ $4 == "baseQty" ]]; then qty="$5"; elif [[ $4 == "quoteQty" ]]; then qty=$(echo "$5 / $gateio_last_price" | bc -l); else die "Unknown $1 qtyType" ; fi
+  gateio_price=$(echo "scale=${price_scale}; $gateio_last_price * 0.997" |bc -l |sed -E 's/^\./0./g')
+  qty=$(echo "scale=${amount_scale}; $qty / $gateio_price" |bc -l |sed -E 's/^\./0./g')
+  gateio_method="POST"
+  gateio_query_string=""
+  gateio_endpoint="spot/${test}order"
+  gateio_body='{"currency_pair":"'$token_pair'","side":"'$2'","amount":"'$qty'","price":"'$gateio_price'"}'
+  gateio_body_hash=$(printf "$gateio_body" | openssl sha512 | awk '{print $NF}')
+  gateio_timestamp=$(date +%s)
+  gateio_sign_string="$gateio_method\n/$gateio_endpoint\n$gateio_query_string\n$gateio_body_hash\n$gateio_timestamp"
+  gateio_signature=$(printf "$gateio_sign_string" | openssl sha512 -hmac "$gateio_secret" | awk '{print $NF}')
+  if [ ! -z $test ]; then echo $gateio_body; else curl_gateio; fi
+
+elif [[ $1 == "ftx" ]]; then
+  get_supported_pairs ftx
+  read token_pair sizeIncrement<<<$(grep -E "^${3}\s+" $tdir/ftx_supported_pairs || grep -E "^${3}\/USDT?\s+" $tdir/ftx_supported_pairs || grep -E "^${3}\/BTC\s+" $tdir/ftx_supported_pairs)
+  ftx_endpoint="/api/markets"
+  ftx_query_string="/$token_pair"
+  ftx_last_price=$(curl_ftx_public |jq .result.last)
+  if [[ $4 == "baseQty" ]]; then qty="$5"; elif [[ $4 == "quoteQty" ]]; then qty=$(echo "$5 / $ftx_last_price" | bc -l); else die "Unknown $1 qtyType" ; fi
+  # scientific notation to regular float
+  qty=$(echo $qty |awk '{printf "%F",$1+0}')
+  sizeIncrement=$(echo $sizeIncrement |awk '{printf "%F",$1+0}')
+  if echo "$qty < $sizeIncrement" |bc -l |grep -q 1; then continue; fi
+  stepSize=$(echo $sizeIncrement |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
+  decimal=$(echo "1 / $sizeIncrement" |bc -l |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
+  qty_dec=$(echo "$qty * $decimal" |bc -l |sed -E 's/\..*//g') 
+  qty=$(echo "$qty_dec / $decimal" |bc -l |sed -E 's/\.0+$//g; s/^\./0./g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
+  ftx_method="POST"
+  ftx_endpoint="/api/${test}orders"
+  ftx_timestamp=$(func_timestamp)
+  ftx_query_string=""
+  ftx_body='{"market":"'${token_pair}'","side":"'$2'","price": null,"type":"market","size":'${qty}'}'
+  ftx_signature=$(echo -n "${ftx_timestamp}${ftx_method}${ftx_endpoint}${ftx_query_string}${ftx_body}" |openssl dgst -sha256 -hmac "$ftx_secret" |awk '{print $2}')
+  if [ ! -z $test ]; then echo $ftx_body; else curl_ftx; fi
+
+else
+  die "$1 exchange doesn't exist"
+fi
+return
+}
+if [ ${param} == "order" ]; then new_order $exchange $side $symbol quoteQty $qty; exit; fi
+
+overview() {
  rm -f $tdir/*
  curl -s -m3 'https://'$gateio_uri'/api/v4/spot/tickers?currency_pair=USDT_USD' |jq -r .[].last |grep -E "[0-9]+\.[0-9]+" > $tdir/usdtusd || echo "1" > $tdir/usdtusd &
  fiat_deposits=$(awk '{dep+=$1}END{print dep}' $script_dir/.fiat_deposits 2>/dev/null &)
  $(
- if [ $residential_country_currency == "USD" ]; then fiat_usd_rate="1"; else curl_usd; fi
+ if [ $residential_country_currency == "USD" ]; then fiat_usd_rate="1"; else fiat_usd_rate=$(curl_fiat_usd_rate); fi
+
  if echo -n $binance_key$binance_secret |wc -c |grep -Eq "^128$" && [[ $exchange =~ binance|all ]]; then
-  binance_method="GET"
-  binance_endpoint="sapi/v1/capital/config/getall"
-  binance_timestamp=$(func_timestamp)
-  binance_query_string="timestamp=$binance_timestamp"
-  binance_signature=$(echo -n "$binance_query_string" |openssl dgst -sha256 -hmac "$binance_secret" |awk '{print $2}')
-  curl_binance |jq ' .[] | select(.free!="0" or .locked!="0") | .coin,.free,.locked' |paste - - - > $tdir/binance_balance
-  binance_endpoint="api/v3/ticker/24hr"
-  curl_binance_public |jq '.[] | {symbol: .symbol, price: .lastPrice, last24hr: .priceChangePercent|tonumber} | select(.price!="0.00000000" and .price!="0.00" and .price!="0") | to_entries[] | .value' |paste - - - > $tdir/binance_24hr
-  sed -i 's/"//g' $tdir/binance_24hr $tdir/binance_balance
-  btcusdt=$(grep -E "^BTCUSDT\b" $tdir/binance_24hr |awk '{print $2}')
-  cat $tdir/binance_balance |while read symbol available locked; do
+  get_overview binance |jq -r ' .[] | select(.free!="0" or .locked!="0") | .coin,.free,.locked' |paste - - - > $tdir/binance_overview
+  get_24hr binance
+  binance_btcusdt=$(grep -E "^BTCUSDT\b" $tdir/binance_24hr |awk '{print $2}')
+  cat $tdir/binance_overview |while read symbol available locked; do
    amount=$(echo "$available + $locked" | bc -l)
    if grep -q "^${symbol}USDT" $tdir/binance_24hr; then
     read usdt_pair_price last24hr <<<$(grep "^${symbol}USDT" $tdir/binance_24hr |awk '{print $2,$3}')
@@ -313,9 +366,9 @@ if [ ${param} == "balance" ]; then
     last24hr="0"
    elif grep -Eq "^${symbol}BTC\b" $tdir/binance_24hr; then
     read btc_pair_price last24hr <<<$(grep "^${symbol}BTC" $tdir/binance_24hr |awk '{print $2,$3}')
-    usdt_pair_price=$(echo "$btc_pair_price * ${btcusdt}" |bc -l)
-   #else
-   #usdt_pair_price=$(curl_usd)
+    usdt_pair_price=$(echo "$btc_pair_price * ${binance_btcusdt}" |bc -l)
+   else
+    [ $residential_country_currency == $symbol ] || die "Didn't find any pair for $symbol on binance"
    fi
    usdt_available=$(echo "scale=2; ($available * $usdt_pair_price) / 1" |bc -l)
    usdt_locked=$(echo "scale=2; ($locked * $usdt_pair_price) / 1" |bc -l)
@@ -324,29 +377,25 @@ if [ ${param} == "balance" ]; then
    usdtusd=$(head -1 $tdir/usdtusd)
    if [ $residential_country_currency == "USD" ]; then
     fiat_total=$(echo "scale=2; ($usdt_total * $usdtusd) / 1" |bc -l)
+   elif [ $residential_country_currency == $symbol ]; then
+    fiat_total=$(echo "scale=2; ($available + $locked) / 1" |bc -l)
+    usdt_available=$(echo "scale=2; ($available / $fiat_usd_rate) / 1" |bc -l)
+    usdt_locked=$(echo "scale=2; ($locked / $fiat_usd_rate) / 1" |bc -l)
+    usdt_total=$(echo "scale=2; ($usdt_available + $usdt_locked) / 1" |bc -l)
    else
     fiat_total=$(echo "scale=2; ($usdt_total * $usdtusd * $fiat_usd_rate) / 1" |bc -l)
    fi
-   btc_total=$(echo "scale=8; $usdt_total / $btcusdt" |bc -l)
+   btc_total=$(echo "scale=8; $usdt_total / $binance_btcusdt" |bc -l)
    last24hr=$(echo "scale=2; $last24hr / 1" | bc -l)
    echo "Binance $symbol $amount $usdt_available $usdt_locked $usdt_total $btc_total $fiat_total $last24hr%" >> $tdir/binance_final
   done
  fi &
+
  if echo -n $gateio_key$gateio_secret |wc -c |grep -Eq "^96$" && [[ $exchange =~ gateio|all ]]; then
-  gateio_method="GET"
-  gateio_query_string=""
-  gateio_body=""
-  gateio_endpoint="api/v4/spot/accounts"
-  gateio_body_hash=$(printf "$gateio_body" | openssl sha512 | awk '{print $NF}')
-  gateio_timestamp=$(date +%s)
-  gateio_sign_string="$gateio_method\n/$gateio_endpoint\n$gateio_query_string\n$gateio_body_hash\n$gateio_timestamp"
-  gateio_signature=$(printf "$gateio_sign_string" | openssl sha512 -hmac "$gateio_secret" | awk '{print $NF}')
-  curl_gateio |jq ' .[] | select(.available!="0" or .locked!="0") |.currency,.available,.locked' |paste - - - > $tdir/gateio_balance
-  gateio_endpoint="api/v4/spot/tickers"
-  curl_gateio_public |jq '.[] | {symbol: .currency_pair, price: .last, last24hr: .change_percentage|tonumber} | select(.price!="0.00000000" and .price!="0.00" and .price!="0") | to_entries[] | .value' |sed 's/_//g' |paste - - - > $tdir/gateio_24hr
-  sed -i 's/"//g' $tdir/gateio_24hr $tdir/gateio_balance
-  btcusdt=$(grep -E "^BTCUSDT\b" $tdir/gateio_24hr |awk '{print $2}')
-  cat $tdir/gateio_balance |while read symbol available locked; do
+  get_overview gateio |jq -r ' .[] | select(.available!="0" or .locked!="0") |.currency,.available,.locked' |paste - - - > $tdir/gateio_overview
+  get_24hr gateio
+  gateio_btcusdt=$(grep -E "^BTCUSDT\b" $tdir/gateio_24hr |awk '{print $2}')
+  cat $tdir/gateio_overview |while read symbol available locked; do
    amount=$(echo "$available + $locked" | bc -l)
    if grep -q "^${symbol}USDT" $tdir/gateio_24hr; then
     read usdt_pair_price last24hr <<<$(grep "^${symbol}USDT" $tdir/gateio_24hr |awk '{print $2,$3}')
@@ -355,9 +404,9 @@ if [ ${param} == "balance" ]; then
     last24hr="0"
    elif grep -Eq "^${symbol}BTC\b" $tdir/gateio_24hr; then
     read btc_pair_price last24hr <<<$(grep "^${symbol}BTC" $tdir/gateio_24hr |awk '{print $2,$3}')
-    usdt_pair_price=$(echo "$btc_pair_price * ${btcusdt}" |bc -l)
-  #else
-   #usdt_pair_price=$(curl_usd)
+    usdt_pair_price=$(echo "$btc_pair_price * ${gateio_btcusdt}" |bc -l)
+   else
+    [ $residential_country_currency == $symbol ] || die "Didn't find any pair for $symbol on binance"
    fi
    usdt_available=$(echo "scale=2; ($available * $usdt_pair_price) / 1" |bc -l)
    usdt_locked=$(echo "scale=2; ($locked * $usdt_pair_price) / 1" |bc -l)
@@ -366,27 +415,25 @@ if [ ${param} == "balance" ]; then
    usdtusd=$(head -1 $tdir/usdtusd)
    if [ $residential_country_currency == "USD" ]; then
     fiat_total=$(echo "scale=2; ($usdt_total * $usdtusd) / 1" |bc -l)
+   elif [ $residential_country_currency == $symbol ]; then
+    fiat_total=$(echo "scale=2; ($available + $locked) / 1" |bc -l)
+    usdt_available=$(echo "scale=2; ($available / $fiat_usd_rate) / 1" |bc -l)
+    usdt_locked=$(echo "scale=2; ($locked / $fiat_usd_rate) / 1" |bc -l)
+    usdt_total=$(echo "scale=2; ($usdt_available + $usdt_locked) / 1" |bc -l)
    else
     fiat_total=$(echo "scale=2; ($usdt_total * $usdtusd * $fiat_usd_rate) / 1" |bc -l)
    fi
-   btc_total=$(echo "scale=8; $usdt_total / $btcusdt" |bc -l)
+   btc_total=$(echo "scale=8; $usdt_total / $gateio_btcusdt" |bc -l)
    last24hr=$(echo "scale=2; $last24hr / 1" | bc -l)
    echo "Gateio $symbol $amount $usdt_available $usdt_locked $usdt_total $btc_total $fiat_total $last24hr%" >> $tdir/gateio_final
   done
  fi &
+
  if echo -n $ftx_key$ftx_secret |wc -c |grep -Eq "^80$" && [[ $exchange =~ ftx|all ]]; then
-  ftx_method="GET"
-  ftx_endpoint="/api/wallet/balances"
-  ftx_timestamp=$(func_timestamp)
-  ftx_query_string=""
-  ftx_body=""
-  ftx_signature=$(echo -n "${ftx_timestamp}${ftx_method}${ftx_endpoint}${ftx_query_string}${ftx_body}" |openssl dgst -sha256 -hmac "$ftx_secret" |awk '{print $2}')
-  curl_ftx |jq '.result | .[] |select(.total!=0) | .coin,.free,.total,.usdValue' |paste - - - - > $tdir/ftx_balance
-  ftx_endpoint="/api/markets"
-  curl_ftx_public |jq '.result | .[] | .name,.price,.change24h' |paste - - - |grep "/" > $tdir/ftx_24hr
-  sed -Ei 's/(\"|\/)//g' $tdir/ftx_24hr $tdir/ftx_balance
-  btcusdt=$(grep -E "^BTCUSDT\b" $tdir/ftx_24hr |awk '{print $2}')
-  cat $tdir/ftx_balance |while read symbol available total usd; do
+  get_overview ftx |jq -r '.result | .[] |select(.total!=0) | .coin,.free,.total,.usdValue' |paste - - - - > $tdir/ftx_overview
+  get_24hr ftx
+  ftx_btcusdt=$(grep -E "^BTCUSDT\b" $tdir/ftx_24hr |awk '{print $2}')
+  cat $tdir/ftx_overview |while read symbol available total usd; do
    amount=$total
    if grep -q "^${symbol}USDT" $tdir/ftx_24hr; then
     read usdt_pair_price last24hr <<<$(grep "^${symbol}USDT" $tdir/ftx_24hr |awk '{print $2,$3}')
@@ -400,19 +447,24 @@ if [ ${param} == "balance" ]; then
     last24hr="0"
    elif grep -Eq "^${symbol}BTC\b" $tdir/ftx_24hr; then
     read btc_pair_price last24hr <<<$(grep "^${symbol}BTC" $tdir/ftx_24hr |awk '{print $2,$3}')
-    usdt_pair_price=$(echo "$btc_pair_price * ${btcusdt}" |bc -l)
-   #else
-   #usdt_pair_price=$(curl_usd)
+    usdt_pair_price=$(echo "$btc_pair_price * ${ftx_btcusdt}" |bc -l)
+   else
+    [ $residential_country_currency == $symbol ] || die "Didn't find any pair for $symbol on binance"
    fi
    usdt_available=$(echo "scale=2; ($available * $usdt_pair_price) / 1" |bc -l)
    usdt_locked=$(echo "scale=2; (($total - $available) * $usdt_pair_price) / 1" |bc -l)
    usdt_total=$(echo "scale=2; ($usdt_available + $usdt_locked) / 1" |bc -l)
    if [ $residential_country_currency == "USD" ]; then
     fiat_total=$usd
+   elif [ $residential_country_currency == $symbol ]; then
+    fiat_total=$(echo "scale=2; ($available + $locked) / 1" |bc -l)
+    usdt_available=$(echo "scale=2; ($available / $fiat_usd_rate) / 1" |bc -l)
+    usdt_locked=$(echo "scale=2; ($locked / $fiat_usd_rate) / 1" |bc -l)
+    usdt_total=$(echo "scale=2; ($usdt_available + $usdt_locked) / 1" |bc -l)
    else
     fiat_total=$(echo "scale=2; ($usdt_total * $usdtusd * $fiat_usd_rate) / 1" |bc -l)
    fi
-   btc_total=$(echo "scale=8; $usdt_total / $btcusdt" |bc -l)
+   btc_total=$(echo "scale=8; $usdt_total / $ftx_btcusdt" |bc -l)
    last24hr=$(echo "scale=2; $last24hr / 1" | bc -l)
    echo "Ftx $symbol $amount $usdt_available $usdt_locked $usdt_total $btc_total $fiat_total $last24hr%" >> $tdir/ftx_final
   done
@@ -421,13 +473,13 @@ if [ ${param} == "balance" ]; then
 
  if [ $progress_bar == "true" ]; then progress_bar; else wait; fi
  # Including percentage allocation column.
- awk '{b[$0]=$6;sum=sum+$6} END{for (i in b) print i, (b[i]/sum)*100"%"}' $tdir/*_final |sort -n -k6 > $tdir/total_final1
+ awk '{b[$0]=$6;sum=sum+$6} END{for (i in b) print i, (b[i]/sum)*100"%"}' $tdir/*_final |sort -n -k6 > $tdir/total_final_all
  # Scaling percentages and removing insignificant amounts
- sed -Ei 's/ (-)?\./ \10./g; s/\.0+ / /g; s/(\.[0-9]+?[1-9]+)[0]+ /\1 /g; s/(\.[0-9]{2})[0-9]+?%/\1%/g; /([e-]|0\.0| 0)[0-9]+?%$/d' $tdir/total_final1
+ sed -Ei 's/ (-)?\./ \10./g; s/\.0+ / /g; s/(\.[0-9]+?[1-9]+)[0]+ /\1 /g; s/(\.[0-9]{2})[0-9]+?%/\1%/g; /([e-]|0\.0| 0)[0-9]+?%$/d' $tdir/total_final_all
  # Including header
- sed -i '1i\Exchange Token Amount USDT-free USDT-locked in-USDT in-BTC in-'$residential_country_currency' Last24hr Allocation' $tdir/total_final1
+ sed -i '1i\Exchange Token Amount USDT-free USDT-locked in-USDT in-BTC in-'$residential_country_currency' Last24hr Allocation' $tdir/total_final_all
  # Fixing column versions compatibility due to -o, coloring, and printing
- msg "\n$(cat $tdir/total_final1 |column -t $(column -h 2>/dev/null |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/Exchange/\\033\[0;34mExchange/g; s/Allocation/Allocation\\033\[0m/g; s/ (-[0-9\.]+%)/ \\033\[0;31m\1\\033\[0m/g; s/ ([0-9\.]+%) / \\033\[0;32m\1 \\033\[0m/g' |tee $tdir/total_final2)\033[0m"
+ msg "\n$(cat $tdir/total_final_all |column -t $(column -h 2>/dev/null |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/Exchange/\\033\[0;34mExchange/g; s/Allocation/Allocation\\033\[0m/g; s/ (-[0-9\.]+%)/ \\033\[0;31m\1\\033\[0m/g; s/ ([0-9\.]+%) / \\033\[0;32m\1 \\033\[0m/g')\033[0m"
 
  if [[ $exchange == "all" ]] ; then
   echo -e "Exchange USDT BTC $residential_country_currency" > $tdir/total_per_exchange
@@ -443,65 +495,89 @@ if [ ${param} == "balance" ]; then
   echo ">>>>> $(echo "scale=2;100 * $current_total / $fiat_deposits - 100" |bc -l)% $(echo "$current_total - $fiat_deposits" |bc -l)" >> $tdir/total_result
   msg "\n$(cat $tdir/total_result |column -t $(column -h 2>/dev/null |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/Return/\\033\[0;34mReturn/g; s/'${residential_country_currency}'/'${residential_country_currency}'\\033\[0m/g')"
  fi
- exit
-fi
+}
+if [ ${param} == "overview" ]; then overview; exit; fi
 
-if [ ${param} == "order" ]; then
-
- if echo -n $gateio_key$gateio_secret |wc -c |grep -Eq "^96$" && [ $exchange = "gateio" ]; then
-   gateio_method="GET"
-   gateio_query_string=""
-   gateio_endpoint="api/v4/spot/currency_pairs"
-   curl_gateio_public |jq -r '.[] |.id,.amount_precision,.precision' |paste - - - > $tdir/gateio_supported_pairs
+rebalance() {
+ [ -f $rebalance_file ] || die "Missing $rebalance_file"
+ # Run overview first to see what we have today.
+ overview
+ echo ""
+ # Getting current assets and its exchange/USDT values from $tdir/total_final_all generated by overview
+ cut -d' ' -f1,2,6 $tdir/total_final_all |sed -E '/e-/d; s/^./\L&\E/; s/\.[0-9]+$//g' |grep -v "^exchange" |sort > $tdir/current_assets
+ # Getting wanted exchange/tokens and current exchange/tokens.
+ cut -d' ' -f1,2 $rebalance_file |grep -v "^Exchange" |sort > $tdir/goal_tokens
+ cut -d' ' -f1,2 $tdir/current_assets > $tdir/current_tokens
+ # Are all current tokens in the goal?
+ if grep -vf $tdir/goal_tokens $tdir/current_tokens > $tdir/tokens_not_in_file; then
+  cat $tdir/tokens_not_in_file
+  read -p "The assets above are not in your goal file, should we sell all of them? (y/n)" -n 1 -r
+  if [[ $REPLY =~ ^[Yy]$ ]]; then 
+   # Let's put them in rebalance file with 0 USDT goal.
+   cat $tdir/tokens_not_in_file |sed -E 's/$/ 0/g' >> $rebalance_file
+  else
+   # Delete from current assets because we are not going to move them, and we are not going to use its $USDTs
+   cat $tdir/tokens_not_in_file |while read exchange token; do sed -Ei '/'"${exchange} ${token}"'\b/d' $tdir/current_assets; done
+  fi
  fi
+ for exchange in `ls -1 ${tdir}/*_final |sed -E 's/(^.*\/|_final)//g'`; do
+  exchange_total_rebalance=$(grep -E "^${exchange}" $rebalance_file |awk '{sum+=$3}END{print sum}' |sed 's/\..*//g')
+  exchange_total_current=$(grep -E "^${exchange}" $tdir/current_assets |awk '{sum+=$3}END{print sum}' |sed 's/\..*//g')
+  grep -Eq "^${exchange}" $rebalance_file || continue
 
- for symbol in `echo $symbol`; do
-
-  if echo -n $binance_key$binance_secret |wc -c |grep -Eq "^128$" && [ $exchange == "binance" ]; then
-   symbol=$(echo $symbol |sed 's/_//g')
-   binance_method="POST"
-   binance_endpoint="api/v3/order$test"
-   timestamp=$(func_timestamp)
-   binance_query_string="quoteOrderQty=$qty&symbol=$symbol&side=$side&type=MARKET&timestamp=$timestamp"
-   binance_signature=$(echo -n "$binance_query_string" |openssl dgst -sha256 -hmac "$binance_secret" |awk '{print $2}')
-   curl_binance
-  fi
- 
-  if echo -n $gateio_key$gateio_secret |wc -c |grep -Eq "^96$" && [ $exchange = "gateio" ]; then
-   if [ ! -z $test ]; then echo "Unfortunately, gate.io doesn't have a test endpoint, so here we are testing only our side"; fi
-   read symbol amount_scale price_scale<<<$(grep -E "^${symbol}\s+" ${tdir}/gateio_supported_pairs || die "Currency pair not suported.")
-   gateio_query_string="currency_pair=$symbol"
-   gateio_endpoint="api/v4/spot/tickers"
-   gateio_last_price=$(gateio_method="GET"; curl_gateio_public |jq -r '.[].last')
-   if echo $side |grep -i sell; then calc="0.997"; else calc="1.003"; fi
-   gateio_price=$(echo "scale=${price_scale}; ($gateio_last_price * $calc) / 1" |bc -l |sed -E 's/^\./0./g')
-   qty=$(echo "scale=${amount_scale}; $qty / $gateio_price" |bc -l |sed -E 's/^\./0./g')
-   gateio_method="POST"
-   gateio_query_string=""
-   gateio_endpoint="spot/${test}order"
-   gateio_body='{"currency_pair":"'$symbol'","side":"'${side}'","amount":"'$qty'","price":"'$gateio_price'"}'
-   echo $gateio_body
-   exit
-   gateio_body_hash=$(printf "$gateio_body" | openssl sha512 | awk '{print $NF}')
-   gateio_timestamp=$(date +%s)
-   gateio_sign_string="$gateio_method\n/$gateio_endpoint\n$gateio_query_string\n$gateio_body_hash\n$gateio_timestamp"
-   gateio_signature=$(printf "$gateio_sign_string" | openssl sha512 -hmac "$gateio_secret" | awk '{print $NF}')
-   curl_gateio
+  if [ $exchange_total_rebalance -gt $exchange_total_current ]; then
+   echo -e "\nNot enought funds to achieve your $exchange goal.\nCurrent: ${exchange_total_current}\nRebalance: ${exchange_total_rebalance}.\n"
+   continue
+  else
+   grep -E "^${exchange}" $rebalance_file |while read xxx token usdt_wanted; do
+    usdt_current=$(grep -E "^${exchange} ${token}\b" $tdir/current_assets |cut -d' ' -f3 || echo 0)
+    diff=$(echo "scale=0; ($usdt_current - $usdt_wanted) / 1" | bc -l)
+    echo $exchange $token $diff >> $tdir/${exchange}_rebalance
+   done
   fi
 
-  if echo -n $ftx_key$ftx_secret |wc -c |grep -Eq "^80$" && [ $exchange == "ftx" ]; then
-   echo "implementing right now"
-   exit
-   if [ ! -z $test ]; then echo "Unfortunately, ftx doesn't have a test endpoint, so here we are testing only our side"; fi
-    symbol=$(echo $symbol |sed 's/_/\//g')
-    ftx_method="POST"
-    ftx_endpoint="/api/${test}orders"
-    ftx_timestamp=$(func_timestamp)
-    ftx_query_string=""
-    ftx_body='{"market":"'${symbol}'","side":"'${side}'","price": null,"type":"market","size":'${qty}'}'
-    ftx_signature=$(echo -n "${ftx_timestamp}${ftx_method}${ftx_endpoint}${ftx_query_string}${ftx_body}" |openssl dgst -sha256 -hmac "$ftx_secret" |awk '{print $2}')
-    curl_ftx
-  fi
+  sort -n -k3 $tdir/${exchange}_rebalance |tac |while read exchange token diff; do
+   if [ "$token" == "${residential_country_currency}" ]; then
+    echo "Skipping FIAT funds. $residential_country_currency"
+   else
+    side=$(echo $diff |sed -E 's/^[0-9\.].*/sell/g; s/^-.*/buy/g')
+    qty=$(echo $diff |sed -E 's/^-//g')
+    if [ $qty -lt 20 ] || [ $qty -ge 20 ]; then
+     echo "Skipping $exchange $token because the diference is less then 20 bucks"
+     continue
+    fi
+    new_order $exchange $side $token quoteQty $qty
+    sleep 2
+   fi
+  done 
+
  done
- exit
-fi
+}
+if [ ${param} == "rebalance" ]; then rebalance; exit; fi
+
+runaway() {
+ if [ -z $test ]; then read -p "Are you sure? This will convert all your assets to USDT (y/n)" -n 1 -r; if [[ ! $REPLY =~ ^[Yy]$ ]]; then exit; fi; fi
+ if echo -n $binance_key$binance_secret |wc -c |grep -Eq "^128$" && [[ $exchange =~ binance|all ]]; then
+  get_supported_pairs binance
+  get_overview binance |jq -r '.[] |select((.free|tonumber>0.0001) and (.coin!="USDT")) |.coin,.free' |paste - - |while read symbol qty; do
+   new_order binance SELL $symbol quantity $qty
+  done
+ fi &
+ if echo -n $gateio_key$gateio_secret |wc -c |grep -Eq "^96$" && [[ $exchange =~ gateio|all ]]; then
+  if [ ! -z $test ]; then echo "Unfortunately, gate.io doesn't have a test endpoint, so here we are testing only our side"; fi
+  get_overview gateio |jq -r ' .[] | select((.available!="0") and (.currency!="USDT")) |.currency,.available' |paste - - > $tdir/gateio_overview
+  get_supported_pairs gateio
+  cat $tdir/gateio_overview | grep -Ev "^(USDT|USDC|BUSD)" |while read symbol qty; do
+   new_order gateio sell $symbol $qty
+  done
+ fi &
+ if echo -n $ftx_key$ftx_secret |wc -c |grep -Eq "^80$" && [[ $exchange =~ ftx|all ]]; then
+  if [ ! -z $test ]; then echo "Unfortunately, ftx doesn't have a test endpoint, so here we are testing only our side"; fi
+  get_supported_pairs ftx
+  get_overview ftx |jq -r '.result | .[] |select(.total!=0) | .coin,.free' |paste - - > $tdir/ftx_overview
+  cat $tdir/ftx_overview | grep -Ev "^(USDT?|USDC|BUSD)" |while read symbol qty; do
+   new_order ftx sell $symbol $qty
+  done
+ fi
+}
+if [ ${param} == "runaway" ]; then runaway; exit; fi

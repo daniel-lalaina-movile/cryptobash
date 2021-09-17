@@ -1,3 +1,4 @@
 temp/*
 .fiat_deposits
+.rebalance
 .credentials
