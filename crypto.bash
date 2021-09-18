@@ -26,24 +26,24 @@ Available options:
 
 -h, --help      Print this help.
 -v, --verbose   Run with debug
--t, --test      Use Binance test endpoint. (Works with "order" or "runaway" params)
+-t, --test      Print the order payload instead of actually requesting the exchanges. (Works with "rebalance", "order" and "runaway" params)
 -p, --param     Main action parameter
 		-p overview  (show your balance)
-		-p order  (buy/sell token(s))
+		-p order  (buy/sell)
                 -p runaway  (sell everything asap)
-		-p rebalance  (rebalance your portfolio based on pre-configured amounts)
+		-p rebalance  (rebalance your portfolio based on .rebalance file)
 
 Examples:
 
 Buy 50 USDT of ADA_USDT
-$script_name -p order binance BUY ADA_USDT 50
-$script_name -p order gateio BUY ADA_USDT 50
-$script_name -p order ftx BUY ADA_USDT 50
+$script_name -p order binance buy ADA_USDT 50
+$script_name -p order gateio buy ADA_USDT 50
+$script_name -p order ftx buy ADA_USDT 50
 
 Buy 50 USDT of each ADA ETH BTC
-$script_name -p order binance BUY ADA_USDT,ETH_USDT,BTC_USDT 50
-$script_name -p order gateio BUY ADA_USDT,ETH_USDT,BTC_USDT 50
-$script_name -p order ftx BUY ADA_USDT,ETH_USDT,BTC_USDT 50
+$script_name -p order binance buy ADA_USDT,ETH_USDT,BTC_USDT 50
+$script_name -p order gateio buy ADA_USDT,ETH_USDT,BTC_USDT 50
+$script_name -p order ftx buy ADA_USDT,ETH_USDT,BTC_USDT 50
 
 Show your balance.
 $script_name -p overview all
@@ -56,6 +56,9 @@ $script_name -p runaway binance
 $script_name -p runaway gateio
 $script_name -p runaway ftx
 $script_name -p runaway all
+
+Rebalance all portifolio based on file .rebalance (You need to copy .rebalance-example to .rebalance and edit it.)
+$script_name -p rebalance
 
 EOF
 exit
@@ -117,15 +120,20 @@ parse_params() {
 
   # Checking required params and arguments
 
-  if [[ "${param}" != @(order|overview|rebalance|runaway) ]]; then die "Missing main parameter: -p <order|overview|rebalance|runaway>"; fi
-  if [[ "${param}" == @(overview|rebalance|runaway) ]]; then
-   exchange=$(echo ${@-} |grep -oPi "(binance|gateio|ftx|all)" || die "Exchange argument is required for param ${param}.\nEx\n${script_name} -p ${param} binance\n${script_name} -p ${param} gateio\n${script_name} -p ${param} all")
+  if [[ "${param}" != @(order|overview|rebalance|runaway) ]]; then
+   die "Missing main parameter: -p <order|overview|rebalance|runaway>"
+  fi
+  if [[ "${param}" == @(overview|runaway) ]]; then
+   exchange=$(echo ${@-} |grep -oP "(binance|gateio|ftx|all)" || die "Exchange argument is required for param ${param}.\nEx\n${script_name} -p ${param} binance\n${script_name} -p ${param} gateio\n${script_name} -p ${param} all")
+  fi
+  if [ "${param}" == "rebalance" ]; then
+   [ -f $rebalance_file ] || die "Missing $rebalance_file"
   fi
   if [ ${param} == "order" ]; then
-   side=$(echo ${@-} |grep -oP "\b(SELL|BUY)\b" || die "SIDE argument is required for param order.\nExamples:\n${script_name} -p order SELL ADA_USDT 30")
-   symbol=$(echo ${@-} |grep -oP "\b[A-Z0-9]+_(USDT|BTC)\b" || die "SYMBOL argument is required for param order. Examples\nTo SELL 30 USDT of ADA:\n${script_name} -p order SELL ADA_USDT 30\nTo buy 30 USDT of each ADA,SOL,LUNA:\n${script_name} -p order SELL ADA_USDT,SOLUSDT,LUNAUSDT 30")
-   qty=$(echo ${@-} |grep -oP "\b[0-9.]+\b" || die "QUOTEQTY argument (which is the amount you want to spend, not the ammount of coins you want to buy/sell) is required for param order.\nExamples:\n/$script_name -p order SELL ADA_USDT 30")
-   exchange=$(echo ${@-} |grep -oPi "(binance|gateio|ftx)" || die "Exchange argument is required for param order.\nExamples:\n${script_name} -p order binance SELL ADA_USDT 30\n${script_name} -p order gateio SELL ADA_USDT 30\n${script_name} -p order ftx SELL ADA_USDT 30")
+   side=$(echo ${@-} |grep -oP "\b(sell|buy)\b" || die "Side argument is required for param order.\nExamples:\n${script_name} -p order sell ADA_USDT 30")
+   symbol=$(echo ${@-} |grep -oP "\b[A-Z0-9]+_(USDT|BTC)\b" || die "SYMBOL argument is required for param order. Examples\nTo sell 30 USDT of ADA:\n${script_name} -p order sell ADA_USDT 30\nTo buy 30 USDT of each ADA,SOL,LUNA:\n${script_name} -p order sell ADA_USDT,SOLUSDT,LUNAUSDT 30")
+   qty=$(echo ${@-} |grep -oP "\b[0-9.]+\b" || die "QUOTEQTY argument (which is the amount you want to spend, not the ammount of coins you want to buy/sell) is required for param order.\nExamples:\n/$script_name -p order sell ADA_USDT 30")
+   exchange=$(echo ${@-} |grep -oPi "(binance|gateio|ftx)" || die "Exchange argument is required for param order.\nExamples:\n${script_name} -p order binance sell ADA_USDT 30\n${script_name} -p order gateio sell ADA_USDT 30\n${script_name} -p order ftx sell ADA_USDT 30")
   fi
 
   return 0
@@ -282,7 +290,7 @@ get_overview() {
 
 new_order() {
 if [[ $1 == "binance" ]]; then
-  if [[ $4 == "quoteQty" ]]; then qtyType="quoteOrderQty"; qty=$5; elif [[ $4 == "baseQty" ]]; then qtyType=quantity; echo "TODO: descobrir quantity pelo quoteOrderQty"; else die "Unknown $1 qtyType" ; fi
+  if [[ $4 == "quoteQty" ]]; then qtyType="quoteOrderQty"; qty=$5; elif [[ $4 == "baseQty" ]]; then qtyType="quantity"; else die "Unknown $1 qtyType"; fi
   get_supported_pairs binance
   read token_pair stepSize<<<$(grep -E "^${3}\s+" $tdir/binance_supported_pairs || grep -E "^${3}USDT\s+" $tdir/binance_supported_pairs || grep -E "^${3}BTC\s+" $tdir/binance_supported_pairs)
   if echo "$qty < $stepSize" |bc -l |grep -q "^1$"; then continue; fi
@@ -305,7 +313,7 @@ elif [[ $1 == "gateio" ]]; then
   gateio_last_price=$(curl_gateio_public |jq -r '.[].last')
   if [[ $4 == "baseQty" ]]; then qty="$5"; elif [[ $4 == "quoteQty" ]]; then qty=$(echo "$5 / $gateio_last_price" | bc -l); else die "Unknown $1 qtyType" ; fi
   gateio_price=$(echo "scale=${price_scale}; $gateio_last_price * 0.997" |bc -l |sed -E 's/^\./0./g')
-  qty=$(echo "scale=${amount_scale}; $qty / $gateio_price" |bc -l |sed -E 's/^\./0./g')
+  qty=$(echo "scale=${amount_scale}; $qty / 1" |bc -l |sed -E 's/^\./0./g')
   gateio_method="POST"
   gateio_query_string=""
   gateio_endpoint="spot/${test}order"
@@ -499,7 +507,6 @@ overview() {
 if [ ${param} == "overview" ]; then overview; exit; fi
 
 rebalance() {
- [ -f $rebalance_file ] || die "Missing $rebalance_file"
  # Run overview first to see what we have today.
  overview
  echo ""
@@ -530,7 +537,7 @@ rebalance() {
    continue
   else
    grep -E "^${exchange}" $rebalance_file |while read xxx token usdt_wanted; do
-    usdt_current=$(grep -E "^${exchange} ${token}\b" $tdir/current_assets |cut -d' ' -f3 || echo 0)
+    usdt_current=$(grep -E "^${exchange} ${token}\b" $tdir/current_assets |grep -E "[0-9\.]+$" || echo 0)
     diff=$(echo "scale=0; ($usdt_current - $usdt_wanted) / 1" | bc -l)
     echo $exchange $token $diff >> $tdir/${exchange}_rebalance
    done
@@ -560,23 +567,21 @@ runaway() {
  if echo -n $binance_key$binance_secret |wc -c |grep -Eq "^128$" && [[ $exchange =~ binance|all ]]; then
   get_supported_pairs binance
   get_overview binance |jq -r '.[] |select((.free|tonumber>0.0001) and (.coin!="USDT")) |.coin,.free' |paste - - |while read symbol qty; do
-   new_order binance SELL $symbol quantity $qty
+   new_order binance sell $symbol baseQty $qty
   done
  fi &
  if echo -n $gateio_key$gateio_secret |wc -c |grep -Eq "^96$" && [[ $exchange =~ gateio|all ]]; then
-  if [ ! -z $test ]; then echo "Unfortunately, gate.io doesn't have a test endpoint, so here we are testing only our side"; fi
   get_overview gateio |jq -r ' .[] | select((.available!="0") and (.currency!="USDT")) |.currency,.available' |paste - - > $tdir/gateio_overview
   get_supported_pairs gateio
   cat $tdir/gateio_overview | grep -Ev "^(USDT|USDC|BUSD)" |while read symbol qty; do
-   new_order gateio sell $symbol $qty
+   new_order gateio sell $symbol baseQty $qty
   done
  fi &
  if echo -n $ftx_key$ftx_secret |wc -c |grep -Eq "^80$" && [[ $exchange =~ ftx|all ]]; then
-  if [ ! -z $test ]; then echo "Unfortunately, ftx doesn't have a test endpoint, so here we are testing only our side"; fi
   get_supported_pairs ftx
   get_overview ftx |jq -r '.result | .[] |select(.total!=0) | .coin,.free' |paste - - > $tdir/ftx_overview
   cat $tdir/ftx_overview | grep -Ev "^(USDT?|USDC|BUSD)" |while read symbol qty; do
-   new_order ftx sell $symbol $qty
+   new_order ftx sell $symbol baseQty $qty
   done
  fi
 }
