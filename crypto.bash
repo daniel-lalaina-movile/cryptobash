@@ -85,8 +85,9 @@ parse_params() {
   test=""
   param=''
   progress_bar="true"
-  ftx_query_string=""
+  binance_query_string=""
   gateio_query_string=""
+  ftx_query_string=""
 
   while :; do
     case "${1-}" in
@@ -188,7 +189,7 @@ curl_binance() {
 }
 
 curl_binance_public() {
- curl -s "https://$binance_uri/$binance_endpoint?"
+ curl -s "https://$binance_uri/$binance_endpoint?$binance_query_string"
  return
 }
 
@@ -293,6 +294,12 @@ if [[ $1 == "binance" ]]; then
   if [[ $4 == "quoteQty" ]]; then qtyType="quoteOrderQty"; qty=$5; elif [[ $4 == "baseQty" ]]; then qtyType="quantity"; else die "Unknown $1 qtyType"; fi
   get_supported_pairs binance
   read token_pair stepSize<<<$(grep -E "^${3}\s+" $tdir/binance_supported_pairs || grep -E "^${3}USDT\s+" $tdir/binance_supported_pairs || grep -E "^${3}BTC\s+" $tdir/binance_supported_pairs)
+  if echo $token_pair |grep "BTC$"; then
+   binance_endpoint="api/v3/ticker/price"
+   binance_query_string="symbol=BTCUSDT"
+   btc_usd=$(curl_binance_public |jq -r .price)
+   qty=$(echo "$qty / $btcusd" |bc -l) 
+  fi
   if echo "$qty < $stepSize" |bc -l |grep -q "^1$"; then continue; fi
   stepSize=$(echo $stepSize |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
   decimal=$(echo "1 / $stepSize" |bc -l |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
@@ -308,6 +315,12 @@ if [[ $1 == "binance" ]]; then
 elif [[ $1 == "gateio" ]]; then
   get_supported_pairs gateio
   read token_pair amount_scale price_scale<<<$(grep -E "^${3}\s+" $tdir/gateio_supported_pairs || grep -E "^${3}_USDT\s+" ${tdir}/gateio_supported_pairs || grep -E "^${3}_BTC\s+" $tdir/gateio_supported_pairs)
+  if echo $token_pair |grep "BTC$"; then
+   binance_endpoint="api/v3/ticker/price" 
+   binance_query_string="symbol=BTCUSDT"
+   btc_usd=$(curl_binance_public |jq -r .price)
+   qty=$(echo "$qty / $btcusd" |bc -l)
+  fi
   gateio_query_string="currency_pair=$token_pair"
   gateio_endpoint="api/v4/spot/tickers"
   gateio_last_price=$(curl_gateio_public |jq -r '.[].last')
@@ -327,6 +340,12 @@ elif [[ $1 == "gateio" ]]; then
 elif [[ $1 == "ftx" ]]; then
   get_supported_pairs ftx
   read token_pair sizeIncrement<<<$(grep -E "^${3}\s+" $tdir/ftx_supported_pairs || grep -E "^${3}\/USDT?\s+" $tdir/ftx_supported_pairs || grep -E "^${3}\/BTC\s+" $tdir/ftx_supported_pairs)
+  if echo $token_pair |grep "BTC$"; then
+   binance_endpoint="api/v3/ticker/price" 
+   binance_query_string="symbol=BTCUSDT"
+   btc_usd=$(curl_binance_public |jq -r .price)
+   qty=$(echo "$qty / $btcusd" |bc -l)
+  fi
   ftx_endpoint="/api/markets"
   ftx_query_string="/$token_pair"
   ftx_last_price=$(curl_ftx_public |jq .result.last)
