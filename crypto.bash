@@ -352,7 +352,12 @@ else
 fi
 return
 }
-if [ ${param} == "order" ]; then new_order $exchange $side $symbol quoteQty $qty; exit; fi
+if [ ${param} == "order" ]; then
+ if [[ $exchange == "binance" ]]; then symbol=$(echo $symbol |sed 's/_//g'); fi
+ if [[ $exchange == "ftx" ]]; then symbol=$(echo $symbol |sed 's/_/\//g; s/\/USDT/\/USDT?/g'); fi
+ new_order $exchange $side $symbol quoteQty $qty
+ exit
+fi
 
 overview() {
  rm -f $tdir/*
