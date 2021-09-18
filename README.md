@@ -28,7 +28,7 @@
 
 - Include the deposits or sum of deposits in .fiat_deposits 
 
-### Optional (if you want rebalance your wallet portifolio)
+### Optional (if you want to rebalance your wallet portifolio)
 
 - You need to have USDT funds in your wallet, it's the most listed and liquid stable currency, so it's easier to operate.
 
