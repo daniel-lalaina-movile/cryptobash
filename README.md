@@ -4,7 +4,8 @@
 - Show your results and the balance details represented in USDT BTC FIAT. (Binance ✔️ / Gate.io ✔️ / FTX ✔️ )
 - Sell every token asap at market price (Binance ✔️ / Gate.io ✔️ / FTX ✔️ )
 - Make basic orders at market price (Binance ✔️ / Gate.io ✔️ / FTX ✔️ )
-- Send Telegram messages about your wallet and results. ✔️
+- Send Telegram messages about your wallet and results. ✔️✔
+- Run as daemon and execute every N minutes. ✔️
 
 ## Example:
 - `./crypto.bash -p overview
