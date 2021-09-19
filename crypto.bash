@@ -94,7 +94,7 @@ parse_params() {
 
   while :; do
     case "${1-}" in
-    --docker) script_name="docker run cryptobash";;
+    --docker) script_name="docker run -d cryptobash";;
     -h | --help) usage;;
     -v | --verbose) set -x; progress_bar="false";;
     -t | --test) test="/test";;
