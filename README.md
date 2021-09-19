@@ -57,7 +57,7 @@ Third, click on the link below, and copy the `chat_id` that appears in the the p
 
 ## Installation step 2
 
-- [Install Docker](https://docs.docker.com/get-docker/ "Docker")
+- [Install Docker](https://docs.docker.com/engine/install/ "Docker")
 
 - `cd bashcrypto`
 
