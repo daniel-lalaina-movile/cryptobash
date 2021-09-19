@@ -23,13 +23,30 @@
 - Include your API credentials in .credentials file  
 (If you use only one some exchanges, just keep the other ones empty.)
 
-### Optional (if you want to see your results)
+### If you want to receive messages about results and balance:
+
+- Open @BotFather ( https://telegram.me/BotFather ) in Telegram and click the `/start` command
+
+- Send the command `/newbot`
+
+- Give a name to the bot
+
+- Create a username for the bot
+
+- The godfather will write you a message with the bot url, and your token, so  
+First, copy your token, it should be something like 8394726483:AAGSnTm4FOdmXZkjdoeys8476hcplnZVzkM
+Second, click in the bot url, then click `/start`, then send a "hello" msg to the bot.
+Third, click on the link below, and copy the `chat_id` that appears in the the page. (REPLACE XXXXXXXXXXXXXXXXXXXXXX your token) https://api.telegram.org/botXXXXXXXXXXXXXXXXXXXXXXXXXXXX/getUpdates
+
+- Include your telegram token and chat_id, in the file .credentials
+
+### If you want to see your results:
 
 - `cp .fiat_deposits-example .fiat_deposits`
 
 - Include the deposits or sum of deposits in .fiat_deposits 
 
-### Optional (if you want to rebalance your wallet portifolio)
+### If you want to rebalance your wallet portifolio:
 
 - You need to have USDT funds in your wallet, it's the most listed and liquid stable currency, so it's easier to operate.
 
@@ -58,5 +75,4 @@
 
 ## TODO:
 
-- More sophisticated orders.
 - Logs
