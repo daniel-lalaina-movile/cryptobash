@@ -7,7 +7,7 @@
 - Send Telegram messages about your wallet and results. ✔️
 
 ## Example:
-- `docker run -d cryptobash -p overview
+- `docker run -d cryptobash -p overview`
 
 ![2021-09-10 00-32-42](https://user-images.githubusercontent.com/1348148/132795835-55606189-a9ed-42c8-8127-8cade75cae4a.gif)
 
