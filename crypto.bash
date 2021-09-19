@@ -41,16 +41,14 @@ $script_name -p order binance buy ADA_USDT 50
 $script_name -p order gateio buy ADA_USDT 50
 $script_name -p order ftx buy ADA_USDT 50
 
-Buy 50 USDT of each ADA ETH BTC
-$script_name -p order binance buy ADA_USDT,ETH_USDT,BTC_USDT 50
-$script_name -p order gateio buy ADA_USDT,ETH_USDT,BTC_USDT 50
-$script_name -p order ftx buy ADA_USDT,ETH_USDT,BTC_USDT 50
-
 Show your balance.
-$script_name -p overview all
-$script_name -p overview binance
-$script_name -p overview gateio
-$script_name -p overview ftx
+$script_name -p overview
+
+Show your balance and reload it every 3 min.
+$script_name -p overview 3
+
+Sendyour balance to Telegram every 10 min.
+$script_name -p overview telegram 10
 
 Sell every token that you have, at market price.
 $script_name -p runaway binance
