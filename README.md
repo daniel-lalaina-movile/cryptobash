@@ -52,7 +52,7 @@ Third, click on the link below, and copy the `chat_id` that appears in the the p
 
 - `cp .rebalance-example .rebalance`
 
-- Cryptobash will make all the necessary orders to get what you put in this file.<br>First column is the token without pair<br>Second column is the USDT amount.<br>It will always try to buy the <token>USDT. If it's not listed by in the exchange, it will see if <token>BTC is, and if so, it will buy BTCUSDT first, and then <token>BTC.
+- Cryptobash will make all the necessary orders to get what you put in this file.<br>First column is the token without pair<br>Second column is the USDT amount.<br>It will always try to buy the token/USDT pair. If it's not listed in the exchange, it will see if <token>BTC is listed, and if so, it will buy BTCUSDT first, and then token/BTC.
 
 ## Installation step 2
 
