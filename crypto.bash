@@ -517,38 +517,31 @@ overview() {
 
  if [ $progress_bar == "true" ]; then progress_bar; else wait; fi
 
- format_and_print() {
-  # Including percentage allocation column.
-  awk '{b[$0]=$6;sum=sum+$6} END{for (i in b) print i, (b[i]/sum)*100"%"}' $tdir/*_final |sort -n -k6 > $tdir/total_final_all
-  # Scaling percentages and removing insignificant amounts
-  sed -Ei 's/ (-)?\./ \10./g; s/\.0+ / /g; s/(\.[0-9]+?[1-9]+)[0]+ /\1 /g; s/(\.[0-9]{2})[0-9]+?%/\1%/g; /([e-]|0\.0| 0)[0-9]+?%$/d' $tdir/total_final_all
-  # Including header
-  sed -i '1i\Exchange Token Amount USDT-free USDT-locked in-USDT in-BTC in-'$residential_country_currency' Last24hr Allocation' $tdir/total_final_all
- 
-  # Fixing column versions compatibility due to -o, coloring, and printing
-  msg "\n$(cat $tdir/total_final_all |column -t $(column -h 2>/dev/null |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/Exchange/\\033\[0;34mExchange/g; s/Allocation/Allocation\\033\[0m/g; s/ (-[0-9\.]+%)/ \\033\[0;31m\1\\033\[0m/g; s/ ([0-9\.]+%) / \\033\[0;32m\1 \\033\[0m/g')\033[0m"
- 
-  echo -e "Exchange USDT BTC $residential_country_currency" > $tdir/total_per_exchange
-  for exchange in `ls -1 ${tdir}/*_final |sed -E 's/(^.*\/|_final)//g'`; do
-   awk '{exchange=$1;usdt+=$6;btc+=$7;rcc+=$8} END{print exchange" "usdt" "btc" "rcc}' ${tdir}/${exchange}_final >> $tdir/total_per_exchange
-  done
-  echo "Total $(awk '{usdt+=$6;btc+=$7;rcc+=$8} END{print " "usdt" "btc" "rcc}' ${tdir}/*_final)" >> $tdir/total_per_exchange
-  msg "\n$(cat $tdir/total_per_exchange |column -t $(column -h 2>/dev/null |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/Exchange/\\033\[0;34mExchange/g; s/'${residential_country_currency}'/'${residential_country_currency}'\\033\[0m/g')"
- 
-  if [ ! -z $fiat_deposits ]; then
-   echo "Return Percentage $residential_country_currency" >> $tdir/total_result
-   current_total=$(tail -1 $tdir/total_per_exchange |awk -F'[| ]+' '{print $4}')
-   echo ">>>>> $(echo "scale=2;100 * $current_total / $fiat_deposits - 100" |bc -l)% $(echo "$current_total - $fiat_deposits" |bc -l)" >> $tdir/total_result
-   msg "\n$(cat $tdir/total_result |column -t $(column -h 2>/dev/null |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/Return/\\033\[0;34mReturn/g; s/'${residential_country_currency}'/'${residential_country_currency}'\\033\[0m/g')"
-  fi
-  return
- } 
- if [ $telegram == "false" ]; then
-  format_and_print
- else
-  format_and_print >/dev/null 2>&1
-  curl_telegram >/dev/null 2>&1
+ # Including percentage allocation column.
+ awk '{b[$0]=$6;sum=sum+$6} END{for (i in b) print i, (b[i]/sum)*100"%"}' $tdir/*_final |sort -n -k6 > $tdir/total_final_all
+ # Scaling percentages and removing insignificant amounts
+ sed -Ei 's/ (-)?\./ \10./g; s/\.0+ / /g; s/(\.[0-9]+?[1-9]+)[0]+ /\1 /g; s/(\.[0-9]{2})[0-9]+?%/\1%/g; /([e-]|0\.0| 0)[0-9]+?%$/d' $tdir/total_final_all
+ # Including header
+ sed -i '1i\Exchange Token Amount USDT-free USDT-locked in-USDT in-BTC in-'$residential_country_currency' Last24hr Allocation' $tdir/total_final_all
+
+ # Fixing column versions compatibility due to -o, coloring, and printing
+ msg "\n$(cat $tdir/total_final_all |column -t $(column -h 2>/dev/null |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/Exchange/\\033\[0;34mExchange/g; s/Allocation/Allocation\\033\[0m/g; s/ (-[0-9\.]+%)/ \\033\[0;31m\1\\033\[0m/g; s/ ([0-9\.]+%) / \\033\[0;32m\1 \\033\[0m/g')\033[0m"
+
+ echo -e "Exchange USDT BTC $residential_country_currency" > $tdir/total_per_exchange
+ for exchange in `ls -1 ${tdir}/*_final |sed -E 's/(^.*\/|_final)//g'`; do
+  awk '{exchange=$1;usdt+=$6;btc+=$7;rcc+=$8} END{print exchange" "usdt" "btc" "rcc}' ${tdir}/${exchange}_final >> $tdir/total_per_exchange
+ done
+ echo "Total $(awk '{usdt+=$6;btc+=$7;rcc+=$8} END{print " "usdt" "btc" "rcc}' ${tdir}/*_final)" >> $tdir/total_per_exchange
+ msg "\n$(cat $tdir/total_per_exchange |column -t $(column -h 2>/dev/null |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/Exchange/\\033\[0;34mExchange/g; s/'${residential_country_currency}'/'${residential_country_currency}'\\033\[0m/g')"
+
+ if [ ! -z $fiat_deposits ]; then
+  echo "Return Percentage $residential_country_currency" >> $tdir/total_result
+  current_total=$(tail -1 $tdir/total_per_exchange |awk -F'[| ]+' '{print $4}')
+  echo ">>>>> $(echo "scale=2;100 * $current_total / $fiat_deposits - 100" |bc -l)% $(echo "$current_total - $fiat_deposits" |bc -l)" >> $tdir/total_result
+  msg "\n$(cat $tdir/total_result |column -t $(column -h 2>/dev/null |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/Return/\\033\[0;34mReturn/g; s/'${residential_country_currency}'/'${residential_country_currency}'\\033\[0m/g')"
  fi
+
+ [ $telegram == "true" ] && then curl_telegram
  return
 }
 if [ ${param} == "overview" ]; then
