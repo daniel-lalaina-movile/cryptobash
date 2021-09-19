@@ -29,6 +29,7 @@ Available options:
 -t, --test      Print the order payload instead of actually requesting the exchanges. (Works with "rebalance", "order" and "runaway" params)
 -p, --param     Main action parameter
 		-p overview  (show your balance)
+		-p telegram (run overview every N minutes and send results to your telegram)
 		-p order  (buy/sell)
                 -p runaway  (sell everything asap)
 		-p rebalance  (rebalance your portfolio based on .rebalance file)
@@ -88,6 +89,8 @@ parse_params() {
   binance_query_string=""
   gateio_query_string=""
   ftx_query_string=""
+  telegram="false"
+  reload_time="0"
 
   while :; do
     case "${1-}" in
@@ -121,20 +124,27 @@ parse_params() {
 
   # Checking required params and arguments
 
-  if [[ "${param}" != @(order|overview|rebalance|runaway) ]]; then
-   die "Missing main parameter: -p <order|overview|rebalance|runaway>"
-  fi
-  if [[ "${param}" == @(overview|runaway) ]]; then
+  if [ "${param}" == "runaway" ]; then
    exchange=$(echo ${@-} |grep -oP "(binance|gateio|ftx|all)" || die "Exchange argument is required for param ${param}.\nEx\n${script_name} -p ${param} binance\n${script_name} -p ${param} gateio\n${script_name} -p ${param} all")
-  fi
-  if [ "${param}" == "rebalance" ]; then
-   [ -f $rebalance_file ] || die "Missing $rebalance_file"
-  fi
-  if [ ${param} == "order" ]; then
+   if [ -z $test ]; then
+    read -p "Are you sure? This will convert all your assets to USDT (y/n)" -n 1 -r
+    [[ ! $REPLY =~ ^[Yy]$ ]] && exit
+   fi
+
+  elif [ "${param}" == "overview" ]; then
+   if echo ${@-} |grep -q telegram; then telegram="true"; progress_bar="false"; fi
+   if echo ${@-} |grep -Eq "\b[0-9]+\b"; then reload_time=$(echo "$(echo ${@-} |grep -oP "\b[0-9]+\b") * 60" |bc -l); fi
+
+  elif [ "${param}" == "rebalance" ]; then [ -f $rebalance_file ] || die "Missing $rebalance_file"
+
+  elif [ ${param} == "order" ]; then
    side=$(echo ${@-} |grep -oP "\b(sell|buy)\b" || die "Side argument is required for param order.\nExamples:\n${script_name} -p order sell ADA_USDT 30")
    symbol=$(echo ${@-} |grep -oP "\b[A-Z0-9]+_(USDT|BTC)\b" || die "SYMBOL argument is required for param order. Examples\nTo sell 30 USDT of ADA:\n${script_name} -p order sell ADA_USDT 30\nTo buy 30 USDT of each ADA,SOL,LUNA:\n${script_name} -p order sell ADA_USDT,SOLUSDT,LUNAUSDT 30")
    qty=$(echo ${@-} |grep -oP "\b[0-9.]+\b" || die "QUOTEQTY argument (which is the amount you want to spend, not the ammount of coins you want to buy/sell) is required for param order.\nExamples:\n/$script_name -p order sell ADA_USDT 30")
    exchange=$(echo ${@-} |grep -oPi "(binance|gateio|ftx)" || die "Exchange argument is required for param order.\nExamples:\n${script_name} -p order binance sell ADA_USDT 30\n${script_name} -p order gateio sell ADA_USDT 30\n${script_name} -p order ftx sell ADA_USDT 30")
+
+  else
+   die "Missing main parameter: -p <order|overview|rebalance|runaway>"
   fi
 
   return 0
@@ -153,7 +163,6 @@ msg "\033[0;34m
 ╚═════╝ ╚══════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝    ╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝
 \033[0m"
 }
-if [ ! ${param} == "overview" ]; then banner; fi
 
 progress_bar() {
  pid=$!
@@ -170,8 +179,8 @@ progress_bar() {
    sleep 0.5
   done
  done
- cols=$(echo "$(tput cols) - 11" | bc -l)
- msg "\r[ $(for ((i=1; i<=${cols}; i++)); do echo -n "\$"; done) ] 1000 %"
+ cols=$(echo "$(tput cols) - 12" | bc -l)
+ msg "\r[ $(for ((i=1; i<=${cols}; i++)); do echo -n "\$"; done) ] 10000 %"
 }
 
 func_timestamp() {
@@ -180,6 +189,11 @@ func_timestamp() {
 
 curl_fiat_usd_rate() {
  curl -s -H 'user-agent: Mozilla' -H 'Accept-Language: en-US,en;q=0.9,it;q=0.8' "https://www.google.com/search?q=1+usd+to+$residential_country_currency" |grep -oP "USD = [0-9]+\\.[0-9]+ $residential_country_currency" |head -n1 |grep -oP "[0-9]+\\.[0-9]+" |tr -d '\n'
+ return
+}
+
+curl_telegram() {
+ curl -s -H 'content-type: application/json' -d '{ "chat_id": '${telegram_chat_id}', "text": "```\n'"$(cat $tdir/total_per_exchange |column -t -o ' | ' |sed ':a;N;$!ba;s/\n/\\n/g')"'\n\n'"$(cat $tdir/total_result |column -t -o ' | ' |sed ':a;N;$!ba;s/\n/\\n/g')"'```", "parse_mode":"MarkdownV2" }' 'https://api.telegram.org/bot'${telegram_key}'/sendMessage'
  return
 }
 
@@ -385,7 +399,7 @@ overview() {
  $(
  if [ $residential_country_currency == "USD" ]; then fiat_usd_rate="1"; else fiat_usd_rate=$(curl_fiat_usd_rate); fi
 
- if echo -n $binance_key$binance_secret |wc -c |grep -Eq "^128$" && [[ $exchange =~ binance|all ]]; then
+ if echo -n $binance_key$binance_secret |wc -c |grep -Eq "^128$"; then
   get_overview binance |jq -r ' .[] | select(.free!="0" or .locked!="0") | .coin,.free,.locked' |paste - - - > $tdir/binance_overview
   get_24hr binance
   binance_btcusdt=$(grep -E "^BTCUSDT\b" $tdir/binance_24hr |awk '{print $2}')
@@ -423,7 +437,7 @@ overview() {
   done
  fi &
 
- if echo -n $gateio_key$gateio_secret |wc -c |grep -Eq "^96$" && [[ $exchange =~ gateio|all ]]; then
+ if echo -n $gateio_key$gateio_secret |wc -c |grep -Eq "^96$"; then
   get_overview gateio |jq -r ' .[] | select(.available!="0" or .locked!="0") |.currency,.available,.locked' |paste - - - > $tdir/gateio_overview
   get_24hr gateio
   gateio_btcusdt=$(grep -E "^BTCUSDT\b" $tdir/gateio_24hr |awk '{print $2}')
@@ -461,7 +475,7 @@ overview() {
   done
  fi &
 
- if echo -n $ftx_key$ftx_secret |wc -c |grep -Eq "^80$" && [[ $exchange =~ ftx|all ]]; then
+ if echo -n $ftx_key$ftx_secret |wc -c |grep -Eq "^80$"; then
   get_overview ftx |jq -r '.result | .[] |select(.total!=0) | .coin,.free,.total,.usdValue' |paste - - - - > $tdir/ftx_overview
   get_24hr ftx
   ftx_btcusdt=$(grep -E "^BTCUSDT\b" $tdir/ftx_24hr |awk '{print $2}')
@@ -504,35 +518,55 @@ overview() {
  ) &
 
  if [ $progress_bar == "true" ]; then progress_bar; else wait; fi
- # Including percentage allocation column.
- awk '{b[$0]=$6;sum=sum+$6} END{for (i in b) print i, (b[i]/sum)*100"%"}' $tdir/*_final |sort -n -k6 > $tdir/total_final_all
- # Scaling percentages and removing insignificant amounts
- sed -Ei 's/ (-)?\./ \10./g; s/\.0+ / /g; s/(\.[0-9]+?[1-9]+)[0]+ /\1 /g; s/(\.[0-9]{2})[0-9]+?%/\1%/g; /([e-]|0\.0| 0)[0-9]+?%$/d' $tdir/total_final_all
- # Including header
- sed -i '1i\Exchange Token Amount USDT-free USDT-locked in-USDT in-BTC in-'$residential_country_currency' Last24hr Allocation' $tdir/total_final_all
- # Fixing column versions compatibility due to -o, coloring, and printing
- msg "\n$(cat $tdir/total_final_all |column -t $(column -h 2>/dev/null |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/Exchange/\\033\[0;34mExchange/g; s/Allocation/Allocation\\033\[0m/g; s/ (-[0-9\.]+%)/ \\033\[0;31m\1\\033\[0m/g; s/ ([0-9\.]+%) / \\033\[0;32m\1 \\033\[0m/g')\033[0m"
 
- if [[ $exchange == "all" ]] ; then
+ format_and_print() {
+  # Including percentage allocation column.
+  awk '{b[$0]=$6;sum=sum+$6} END{for (i in b) print i, (b[i]/sum)*100"%"}' $tdir/*_final |sort -n -k6 > $tdir/total_final_all
+  # Scaling percentages and removing insignificant amounts
+  sed -Ei 's/ (-)?\./ \10./g; s/\.0+ / /g; s/(\.[0-9]+?[1-9]+)[0]+ /\1 /g; s/(\.[0-9]{2})[0-9]+?%/\1%/g; /([e-]|0\.0| 0)[0-9]+?%$/d' $tdir/total_final_all
+  # Including header
+  sed -i '1i\Exchange Token Amount USDT-free USDT-locked in-USDT in-BTC in-'$residential_country_currency' Last24hr Allocation' $tdir/total_final_all
+ 
+  # Fixing column versions compatibility due to -o, coloring, and printing
+  msg "\n$(cat $tdir/total_final_all |column -t $(column -h 2>/dev/null |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/Exchange/\\033\[0;34mExchange/g; s/Allocation/Allocation\\033\[0m/g; s/ (-[0-9\.]+%)/ \\033\[0;31m\1\\033\[0m/g; s/ ([0-9\.]+%) / \\033\[0;32m\1 \\033\[0m/g')\033[0m"
+ 
   echo -e "Exchange USDT BTC $residential_country_currency" > $tdir/total_per_exchange
   for exchange in `ls -1 ${tdir}/*_final |sed -E 's/(^.*\/|_final)//g'`; do
    awk '{exchange=$1;usdt+=$6;btc+=$7;rcc+=$8} END{print exchange" "usdt" "btc" "rcc}' ${tdir}/${exchange}_final >> $tdir/total_per_exchange
   done
   echo "Total $(awk '{usdt+=$6;btc+=$7;rcc+=$8} END{print " "usdt" "btc" "rcc}' ${tdir}/*_final)" >> $tdir/total_per_exchange
   msg "\n$(cat $tdir/total_per_exchange |column -t $(column -h 2>/dev/null |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/Exchange/\\033\[0;34mExchange/g; s/'${residential_country_currency}'/'${residential_country_currency}'\\033\[0m/g')"
+ 
+  if [ ! -z $fiat_deposits ]; then
+   echo "Return Percentage $residential_country_currency" >> $tdir/total_result
+   current_total=$(tail -1 $tdir/total_per_exchange |awk -F'[| ]+' '{print $4}')
+   echo ">>>>> $(echo "scale=2;100 * $current_total / $fiat_deposits - 100" |bc -l)% $(echo "$current_total - $fiat_deposits" |bc -l)" >> $tdir/total_result
+   msg "\n$(cat $tdir/total_result |column -t $(column -h 2>/dev/null |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/Return/\\033\[0;34mReturn/g; s/'${residential_country_currency}'/'${residential_country_currency}'\\033\[0m/g')"
+  fi
+  return
+ } 
+ if [ $telegram == "false" ]; then
+  format_and_print
+ else
+  format_and_print >/dev/null 2>&1
+  curl_telegram >/dev/null 2>&1
  fi
- if [ ! -z $fiat_deposits ]; then
-  echo "Return Percentage $residential_country_currency" >> $tdir/total_result
-  current_total=$(tail -1 $tdir/total_per_exchange |awk -F'[| ]+' '{print $4}')
-  echo ">>>>> $(echo "scale=2;100 * $current_total / $fiat_deposits - 100" |bc -l)% $(echo "$current_total - $fiat_deposits" |bc -l)" >> $tdir/total_result
-  msg "\n$(cat $tdir/total_result |column -t $(column -h 2>/dev/null |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/Return/\\033\[0;34mReturn/g; s/'${residential_country_currency}'/'${residential_country_currency}'\\033\[0m/g')"
- fi
+ return
 }
-if [ ${param} == "overview" ]; then overview; exit; fi
+if [ ${param} == "overview" ]; then
+ if [ $reload_time == "0" ]; then
+  overview
+  exit
+ else
+  while true; do
+   overview
+   sleep $reload_time
+  done
+ fi
+fi
 
 rebalance() {
  # Run overview first to see what we have today.
- exchange="all"
  overview
  echo ""
  # Getting current assets and its exchange/USDT values from $tdir/total_final_all generated by overview
@@ -588,7 +622,6 @@ rebalance() {
 if [ ${param} == "rebalance" ]; then rebalance; exit; fi
 
 runaway() {
- if [ -z $test ]; then read -p "Are you sure? This will convert all your assets to USDT (y/n)" -n 1 -r; if [[ ! $REPLY =~ ^[Yy]$ ]]; then exit; fi; fi
  if echo -n $binance_key$binance_secret |wc -c |grep -Eq "^128$" && [[ $exchange =~ binance|all ]]; then
   get_supported_pairs binance
   get_overview binance |jq -r '.[] |select((.free|tonumber>0.0001) and (.coin!="USDT")) |.coin,.free' |paste - - |while read symbol qty; do
@@ -610,4 +643,4 @@ runaway() {
   done
  fi
 }
-if [ ${param} == "runaway" ]; then runaway; exit; fi
+if [ ${param} == "runaway" ]; then banner; runaway; exit; fi
