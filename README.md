@@ -35,7 +35,7 @@
 
 - The godfather will write you a message with the bot url, and your token, so:  
 First, copy your token, it should be something like 8394726483:AAGSnTm4FOdmXZkjdoeys8476hcplnZVzkM  
-Second, click in the bot url, then click `/start`, then send a "hello" msg to the bot.  
+Second, click in the bot url, then click `/start` and send a "hello" msg to the bot. (It shouln't answer anything, that's right) 
 Third, click on the link below, and copy the `chat_id` that appears in the the page. (REPLACE XXXXXXXXXXXXXXXXXXXXXX your token) https://api.telegram.org/botXXXXXXXXXXXXXXXXXXXXXXXXXXXX/getUpdates
 
 - Include your telegram token and chat_id, in the file .credentials
