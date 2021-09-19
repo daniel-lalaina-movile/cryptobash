@@ -67,6 +67,14 @@ Third, click on the link below, and copy the `chat_id` that appears in the the p
 
 - `./crypto.bash -h`  
 
+## Security
+
+- As we are talking about people's money, it's better to be sure about compatibility, so Docker is mandatory, because now a days it's almost impossible to assure 100% POSIX to work in Mac, Debian, Redhat, etc.
+
+- Instead of creating a custom image already ready2go, I opted to use an official docker image, and include the system and the necessary packages only in the docker build. And I did that because I wouldn't use someone's image to take care of my money, so I don't want you/others to use a custom image also.
+
+- ATTENTION: Never share your API keys with other people!
+  
 ## Donate
 
 | Cryptocurrencies                                              | Network                   | Address                                                  |
