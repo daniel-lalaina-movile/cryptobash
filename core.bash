@@ -90,6 +90,7 @@ parse_params() {
   ftx_query_string=""
   telegram="false"
   reload_time="0"
+  binance_btcusdt=""
 
   while :; do
     case "${1-}" in
@@ -124,16 +125,14 @@ parse_params() {
 
   if [ "${param}" == "runaway" ]; then
    exchange=$(echo ${@-} |grep -oP "(binance|gateio|ftx|all)" || die "Exchange argument is required for param ${param}.\nEx\n${script_name} -p ${param} binance\n${script_name} -p ${param} gateio\n${script_name} -p ${param} all")
-   if [ -z $test ]; then
-    read -p "Are you sure? This will convert all your assets to USDT (y/n)" -n 1 -r
-    [[ ! $REPLY =~ ^[Yy]$ ]] && exit
-   fi
 
   elif [ "${param}" == "overview" ]; then
    if echo ${@-} |grep -q telegram; then telegram="true"; progress_bar="false"; fi
    if echo ${@-} |grep -Eq "\b[0-9]+\b"; then reload_time=$(echo "$(echo ${@-} |grep -oP "\b[0-9]+\b") * 60" |bc -l); fi
 
-  elif [ "${param}" == "rebalance" ]; then [ -f $rebalance_file ] || die "Missing $rebalance_file"
+  elif [ "${param}" == "rebalance" ]; then
+   [ -f $rebalance_file ] || die "Missing $rebalance_file"
+   sed -E 's/\s+/ /g' $rebalance_file
 
   elif [ ${param} == "order" ]; then
    side=$(echo ${@-} |grep -oP "\b(sell|buy)\b" || die "Side argument is required for param order.\nExamples:\n${script_name} -p order sell ADA_USDT 30")
@@ -306,13 +305,13 @@ if [[ $1 == "binance" ]]; then
   if [[ $4 == "quoteQty" ]]; then qtyType="quoteOrderQty"; qty=$5; elif [[ $4 == "baseQty" ]]; then qtyType="quantity"; else die "Unknown $1 qtyType"; fi
   get_supported_pairs binance
   read token_pair stepSize<<<$(grep -E "^${3}\s+" $tdir/binance_supported_pairs || grep -E "^${3}USDT\s+" $tdir/binance_supported_pairs || grep -E "^${3}BTC\s+" $tdir/binance_supported_pairs)
-  if echo $token_pair |grep "BTC$"; then
+  if echo $token_pair |grep -q "BTC$"; then
    binance_endpoint="api/v3/ticker/price"
    binance_query_string="symbol=BTCUSDT"
-   btc_usd=$(curl_binance_public |jq -r .price)
-   qty=$(echo "$qty / $btcusd" |bc -l) 
+   if [ -z $binance_btcusdt ]; then binance_btcusdt=$(curl_binance_public |jq -r .price); fi
+   qty=$(echo "$qty / $binance_btcusdt" |bc -l) 
   fi
-  if echo "$qty < $stepSize" |bc -l |grep -q "^1$"; then continue; fi
+  if echo "$qty < $stepSize" |bc -l |grep -q "^1$"; then return 0; fi
   stepSize=$(echo $stepSize |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
   decimal=$(echo "1 / $stepSize" |bc -l |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
   qty_dec=$(echo "$5 * $decimal" |bc -l |sed -E 's/\..*//g')
@@ -327,11 +326,11 @@ if [[ $1 == "binance" ]]; then
 elif [[ $1 == "gateio" ]]; then
   get_supported_pairs gateio
   read token_pair amount_scale price_scale<<<$(grep -E "^${3}\s+" $tdir/gateio_supported_pairs || grep -E "^${3}_USDT\s+" ${tdir}/gateio_supported_pairs || grep -E "^${3}_BTC\s+" $tdir/gateio_supported_pairs)
-  if echo $token_pair |grep "BTC$"; then
-   binance_endpoint="api/v3/ticker/price" 
+  if echo $token_pair |grep -q "BTC$"; then
+   binance_endpoint="api/v3/ticker/price"
    binance_query_string="symbol=BTCUSDT"
-   btc_usd=$(curl_binance_public |jq -r .price)
-   qty=$(echo "$qty / $btcusd" |bc -l)
+   if [ -z $gateio_btcusdt ]; then gateio_btcusdt=$(curl_binance_public |jq -r .price); fi
+   qty=$(echo "$qty / $gateio_btcusdt" |bc -l) 
   fi
   gateio_query_string="currency_pair=$token_pair"
   gateio_endpoint="api/v4/spot/tickers"
@@ -352,11 +351,11 @@ elif [[ $1 == "gateio" ]]; then
 elif [[ $1 == "ftx" ]]; then
   get_supported_pairs ftx
   read token_pair sizeIncrement<<<$(grep -E "^${3}\s+" $tdir/ftx_supported_pairs || grep -E "^${3}\/USDT?\s+" $tdir/ftx_supported_pairs || grep -E "^${3}\/BTC\s+" $tdir/ftx_supported_pairs)
-  if echo $token_pair |grep "BTC$"; then
-   binance_endpoint="api/v3/ticker/price" 
+  if echo $token_pair |grep -q "BTC$"; then
+   binance_endpoint="api/v3/ticker/price"
    binance_query_string="symbol=BTCUSDT"
-   btc_usd=$(curl_binance_public |jq -r .price)
-   qty=$(echo "$qty / $btcusd" |bc -l)
+   if [ -z $ftx_btcusdt ]; then ftx_btcusd=$(curl_binance_public |jq -r .price); fi
+   qty=$(echo "$qty / $ftx_btcusd" |bc -l) 
   fi
   ftx_endpoint="/api/markets"
   ftx_query_string="/$token_pair"
@@ -365,7 +364,7 @@ elif [[ $1 == "ftx" ]]; then
   # scientific notation to regular float
   qty=$(echo $qty |awk '{printf "%F",$1+0}')
   sizeIncrement=$(echo $sizeIncrement |awk '{printf "%F",$1+0}')
-  if echo "$qty < $sizeIncrement" |bc -l |grep -q 1; then continue; fi
+  if echo "$qty < $sizeIncrement" |bc -l |grep -q 1; then return 0; fi
   stepSize=$(echo $sizeIncrement |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
   decimal=$(echo "1 / $sizeIncrement" |bc -l |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
   qty_dec=$(echo "$qty * $decimal" |bc -l |sed -E 's/\..*//g') 
@@ -541,7 +540,7 @@ overview() {
   msg "\n$(cat $tdir/total_result |column -t $(column -h 2>/dev/null |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/Return/\\033\[0;34mReturn/g; s/'${residential_country_currency}'/'${residential_country_currency}'\\033\[0m/g')"
  fi
 
- [ $telegram == "true" ] && curl_telegram
+ if [ $telegram == "true" ]; then curl_telegram; fi
  return
 }
 if [ ${param} == "overview" ]; then
@@ -558,7 +557,7 @@ fi
 
 rebalance() {
  # Run overview first to see what we have today.
- overview
+ overview >/dev/null 2>&1
  echo ""
  # Getting current assets and its exchange/USDT values from $tdir/total_final_all generated by overview
  cut -d' ' -f1,2,6 $tdir/total_final_all |sed -E '/e-/d; s/^./\L&\E/; s/\.[0-9]+$//g' |grep -v "^exchange" |sort > $tdir/current_assets
@@ -596,15 +595,17 @@ rebalance() {
   sort -n -k3 $tdir/${exchange}_rebalance |tac |while read exchange token diff; do
    if [ "$token" == "${residential_country_currency}" ]; then
     echo "Skipping FIAT funds. $residential_country_currency"
+   elif [ "$token" == "USDT" ]; then
+    echo "Skipping USDT funds. $residential_country_currency"
    else
     side=$(echo $diff |sed -E 's/^[0-9\.].*/sell/g; s/^-.*/buy/g')
     qty=$(echo $diff |sed -E 's/^-//g')
-    if [ $qty -lt 20 ] || [ $qty -ge 20 ]; then
+    if [ $qty -lt 20 ]; then
      echo "Skipping $exchange $token because the diference is less then 20 bucks"
      continue
     fi
     new_order $exchange $side $token quoteQty $qty
-    sleep 2
+    sleep 1
    fi
   done 
 
@@ -613,6 +614,8 @@ rebalance() {
 if [ ${param} == "rebalance" ]; then rebalance; exit; fi
 
 runaway() {
+ if [ -z $test ]; then read -p "Are you sure? This will convert all your assets to USDT (y/n)" -n 1 -r; [[ ! $REPLY =~ ^[Yy]$ ]] && exit; fi
+
  if echo -n $binance_key$binance_secret |wc -c |grep -Eq "^128$" && [[ $exchange =~ binance|all ]]; then
   get_supported_pairs binance
   get_overview binance |jq -r '.[] |select((.free|tonumber>0.0001) and (.coin!="USDT")) |.coin,.free' |paste - - |while read symbol qty; do

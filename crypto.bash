@@ -8,6 +8,6 @@ cd $script_dir
 if echo "$@" |grep -Eq  "overview.*[0-9]"; then
  docker run -d --restart unless-stopped cryptobash "$@"
 else
- docker run cryptobash "$@"
+ docker run -i cryptobash "$@"
 fi
 
