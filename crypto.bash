@@ -18,7 +18,7 @@ if echo "$parameters" |grep -Eq  "stop"; then
 fi
 
 if [ -z $latest ]; then
- docker build -t cryptobash:cryptobash_$RANDOM .
+ docker build -t cryptobash:cryptobash_$(date +%Y%m%d%H%M%S) .
  latest
 fi
 
