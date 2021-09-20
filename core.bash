@@ -166,6 +166,7 @@ msg "\033[0;34m
 progress_bar() {
  pid=$!
  banner
+ sleep 0.1
  while kill -0 $pid 2> /dev/null; do
   for ((k = 0; k <= 30 ; k++)); do
    echo -n "[ "
