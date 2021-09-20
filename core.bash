@@ -600,7 +600,7 @@ rebalance() {
    if [ "$token" == "${residential_country_currency}" ]; then
     echo "Skipping FIAT funds. $residential_country_currency"
    elif [[ ${token} =~ ^(USD|USDT|BUSD|USDC)$ ]]; then
-    echo "Skipping USDT funds. $residential_country_currency"
+    echo "Skipping stable coin $token."
    else
     side=$(echo $diff |sed -E 's/^[0-9\.].*/sell/g; s/^-.*/buy/g')
     qty=$(echo $diff |sed -E 's/^-//g')
