@@ -321,7 +321,7 @@ if [[ $1 == "binance" ]]; then
    if [ -z $binance_btcusdt ]; then binance_btcusdt=$(curl_binance_public |jq -r .price); fi
    qty=$(echo "$qty / $binance_btcusdt" |bc -l) 
   fi
-  if echo "$qty < $stepSize" |bc -l |grep -q "^1$"; then return 0; fi
+  #if echo "$qty < $stepSize" |bc -l |grep -q "^1$"; then return 0; fi
   stepSize=$(echo $stepSize |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
   decimal=$(echo "1 / $stepSize" |bc -l |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
   qty_dec=$(echo "$5 * $decimal" |bc -l |sed -E 's/\..*//g')
@@ -543,6 +543,8 @@ overview() {
   echo ">>>>> $(echo "scale=2;100 * $current_total / $fiat_deposits - 100" |bc -l)% $(echo "$current_total - $fiat_deposits" |bc -l)" >> $tdir/total_result
   msg "\n$(cat $tdir/total_result |column -t $(column -h 2>/dev/null |grep -q "\-o," && printf '%s' -o ' | ') |sed -E 's/\|/ \| /g; s/Return/\\033\[0;34mReturn/g; s/'${residential_country_currency}'/'${residential_country_currency}'\\033\[0m/g')"
  fi
+
+ echo -en "\n$(date)\n"
 
  if [ $telegram == "true" ]; then curl_telegram; fi
  return
