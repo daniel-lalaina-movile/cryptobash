@@ -59,10 +59,6 @@ Third, click on the link below, and copy the `chat_id` that appears in the the p
 
 - [Install Docker](https://docs.docker.com/engine/install/ "Docker")
 
-- `cd bashcrypto`
-
-- `docker build -t cryptobash:latest .`
-
 ## Running:
 
 - `./crypto.bash -h`  
