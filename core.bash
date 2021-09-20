@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 
 # https://github.com/daniel-lalaina-movile/cryptobash
+export TERM=xterm
 
 set -Eeuo pipefail
 trap cleanup SIGINT SIGTERM ERR EXIT
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)
 script_name="./crypto.bash"
-#script_name="./$(basename "${BASH_SOURCE[0]}")"
-tdir=$script_dir/temp
+tdir=$script_dir/temp/$1
 rebalance_file=$script_dir/.rebalance
 
 binance_uri="api.binance.com"
@@ -95,15 +95,15 @@ parse_params() {
   binance_btcusdt=""
 
   while :; do
-    case "${1-}" in
+    case "${2-}" in
     -h | --help) usage;;
     -v | --verbose) set -x; progress_bar="false";;
     -t | --test) test="/test";;
     -p | --param)
-      param="${2-}"
+      param="${3-}"
       shift
       ;;
-    -?*) die "Unknown option: $1";;
+    -?*) die "Unknown option: $2";;
     *) break ;;
     esac
     shift

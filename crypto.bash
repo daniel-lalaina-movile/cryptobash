@@ -22,9 +22,21 @@ if [ -z $latest ]; then
  latest
 fi
 
-if echo "$parameters" |grep -Eq  "overview.*telegram.*[0-9]"; then
- docker run -d --restart unless-stopped cryptobash:$latest $parameters
+temp_dir=$(date +%Y%m%d%H%M%S)
+mkdir $script_dir/temp/$temp_dir
+
+# docker version compatibility
+if docker run --help |grep -q "\-\-mount"; then
+ mount="--mount source=$script_dir,target=/cryptobash"
+elif docker run --help  |grep "\-v, \-\-volume list"; then
+ mount="-v $script_dir:/cryptobash"
 else
- docker run -i cryptobash:$latest $parameters
+ echo "You are using some crazy docker version, please contact cryptobash project owner"
+fi
+
+if echo "$parameters" |grep -Eq  "overview.*telegram.*[0-9]"; then
+ docker run -d $mount --restart unless-stopped cryptobash:$latest $temp_dir $parameters
+else
+ docker run -i $mount cryptobash:$latest $temp_dir $parameters
 fi
 
