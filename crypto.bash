@@ -5,10 +5,6 @@
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)
 cd $script_dir
 
-latest() {
- latest=$(docker image ls |grep cryptobash |head -n1 |awk '{print $2}')
-}
-
 parameters="$@"
 
 if echo "$parameters" |grep -Eq  "stop"; then
@@ -17,9 +13,11 @@ if echo "$parameters" |grep -Eq  "stop"; then
  exit
 fi
 
+latest=$(docker image ls |grep cryptobash |head -n1 |awk '{print $2}')
 if [ -z $latest ]; then
+ echo "Runninge for the fist time, let's build docker image"
  docker build -t cryptobash:cryptobash_$(date +%Y%m%d%H%M%S) .
- latest
+ latest=$(docker image ls |grep cryptobash |head -n1 |awk '{print $2}')
 fi
 
 temp_dir=$(date +%Y%m%d%H%M%S)

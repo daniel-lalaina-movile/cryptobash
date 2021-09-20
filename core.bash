@@ -30,7 +30,6 @@ Available options:
 -t, --test      Print the order payload instead of actually requesting the exchanges. (Works with "rebalance", "order" and "runaway" params)
 -p, --param     Main action parameter
 		-p overview  (show your balance)
-		-p telegram (run overview every N minutes and send results to your telegram)
 		-p order  (buy/sell)
                 -p runaway  (sell everything asap)
 		-p rebalance  (rebalance your portfolio based on .rebalance file)
@@ -45,10 +44,13 @@ $script_name -p order ftx buy ADA_USDT 50
 Show your balance.
 $script_name -p overview
 
-Show your balance and reload it every 3 min.
-$script_name -p overview 3
+Show your balance details and close
+$script_name -p overview
 
-Sendyour balance to Telegram every 10 min.
+Show your balance details and reload it every 10 min.
+$script_name -p overview 10
+
+Send your balance totals to Telegram every 15 min.
 $script_name -p overview telegram 10
 
 Sell every token that you have, at market price.
