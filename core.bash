@@ -137,6 +137,7 @@ parse_params() {
   elif [ "${param}" == "rebalance" ]; then
    [ -f $rebalance_file ] || die "Missing $rebalance_file"
    sed -E 's/\s+/ /g' $rebalance_file
+   missing_tokens_action==$(echo ${@-} |grep -oP "\b(force|keep)\b" || echo "warn")
 
   elif [ ${param} == "order" ]; then
    side=$(echo ${@-} |grep -oP "\b(sell|buy)\b" || die "Side argument is required for param order.\nExamples:\n${script_name} -p order sell ADA_USDT 30")
@@ -575,12 +576,14 @@ rebalance() {
  cut -d' ' -f1,2 $tdir/current_assets > $tdir/current_tokens
  # Are all current tokens in the goal?
  if grep -vf $tdir/goal_tokens $tdir/current_tokens > $tdir/tokens_not_in_file; then
+  if [ $missing_tokens_action == "warn" ]; then 
   cat $tdir/tokens_not_in_file
-  read -p "The assets above are not in your goal file, should we sell all of them? (y/n)" -n 1 -r
-  if [[ $REPLY =~ ^[Yy]$ ]]; then 
+  die "The assets above are not in your rebalance file\nPlease:\n- If you want to keep them, run again with keep argument. ( ${param} keep )\n- If you want to keep some of them, take a look at your balance detais, include them in the rebalance file with the same USDT amount, and run again with force argument. ( ${param} force )- If you want to sell all of them, run again with keep argument. ( ${param} force )"
+  fi
+  if [ $missing_tokens_action == "force" ]; then
    # Let's put them in rebalance file with 0 USDT goal.
    cat $tdir/tokens_not_in_file |sed -E 's/$/ 0/g' >> $rebalance_file
-  else
+  elif [ $missing_tokens_action == "keep" ]; then
    # Delete from current assets because we are not going to move them, and we are not going to use its $USDTs
    cat $tdir/tokens_not_in_file |while read exchange token; do sed -Ei '/'"${exchange} ${token}"'\b/d' $tdir/current_assets; done
   fi
@@ -620,30 +623,13 @@ rebalance() {
 
  done
 }
-if [ ${param} == "rebalance" ]; then rebalance; exit; fi
-
-runaway() {
- #if [ -z $test ]; then read -p "Are you sure? This will convert all your assets to USDT (y/n)" -n 1 -r; [[ ! $REPLY =~ ^[Yy]$ ]] && exit; fi
-
- if echo -n $binance_key$binance_secret |wc -c |grep -Eq "^128$" && [[ $exchange =~ binance|all ]]; then
-  get_supported_pairs binance
-  get_overview binance |jq -r '.[] |select((.free|tonumber>0.0001) and (.coin!="USDT")) |.coin,.free' |paste - - |while read symbol qty; do
-   new_order binance sell $symbol baseQty $qty
-  done
- fi
- if echo -n $gateio_key$gateio_secret |wc -c |grep -Eq "^96$" && [[ $exchange =~ gateio|all ]]; then
-  get_overview gateio |jq -r ' .[] | select((.available!="0") and (.currency!="USDT")) |.currency,.available' |paste - - > $tdir/gateio_overview
-  get_supported_pairs gateio
-  cat $tdir/gateio_overview | grep -Ev "^(USDT|USDC|BUSD)" |while read symbol qty; do
-   new_order gateio sell $symbol baseQty $qty
-  done
- fi
- if echo -n $ftx_key$ftx_secret |wc -c |grep -Eq "^80$" && [[ $exchange =~ ftx|all ]]; then
-  get_supported_pairs ftx
-  get_overview ftx |jq -r '.result | .[] |select(.total!=0) | .coin,.free' |paste - - > $tdir/ftx_overview
-  cat $tdir/ftx_overview | grep -Ev "^(USDT?|USDC|BUSD)" |while read symbol qty; do
-   new_order ftx sell $symbol baseQty $qty
-  done
- fi
-}
-if [ ${param} == "runaway" ]; then banner; runaway; exit; fi
+if [ ${param} == "rebalance" ]; then
+ rebalance
+ exit
+elif [ ${param} == "runaway" ]; then
+ missing_tokens_action="force"
+ touch /tmp/fake_rebalance_file
+ rebalance_file="/tmp/fake_rebalance_file"
+ rebalance
+ exit
+fi
