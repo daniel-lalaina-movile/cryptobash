@@ -4,7 +4,8 @@
 - Show your results and the balance details represented in USDT BTC FIAT. (Binance ✔️ / Gate.io ✔️ / FTX ✔️ )
 - Sell every token asap at market price (Binance ✔️ / Gate.io ✔️ / FTX ✔️ )
 - Make basic orders at market price (Binance ✔️ / Gate.io ✔️ / FTX ✔️ )
-- Send Telegram messages about your wallet and results. ✔️
+- Send Telegram messages about your wallet and results. ✔️✔
+- Run as daemon and execute every N minutes. ✔️
 
 ## Example:
 - `./crypto.bash -p overview
@@ -35,7 +36,7 @@
 
 - The godfather will write you a message with the bot url, and your token, so:  
 First, copy your token, it should be something like 8394726483:AAGSnTm4FOdmXZkjdoeys8476hcplnZVzkM  
-Second, click in the bot url, then click `/start`, then send a "hello" msg to the bot.  
+Second, click in the bot url, then click `/start` and send a "hello" msg to the bot. (It shouln't answer anything, that's right) 
 Third, click on the link below, and copy the `chat_id` that appears in the the page. (REPLACE XXXXXXXXXXXXXXXXXXXXXX your token) https://api.telegram.org/botXXXXXXXXXXXXXXXXXXXXXXXXXXXX/getUpdates
 
 - Include your telegram token and chat_id, in the file .credentials
@@ -52,11 +53,11 @@ Third, click on the link below, and copy the `chat_id` that appears in the the p
 
 - `cp .rebalance-example .rebalance`
 
-- Cryptobash will make all the necessary orders to get what you put in this file.<br>First column is the token without pair<br>Second column is the USDT amount.<br>It will always try to buy the <token>USDT. If it's not listed by in the exchange, it will see if <token>BTC is, and if so, it will buy BTCUSDT first, and then <token>BTC.
+- Cryptobash will make all the necessary orders to get what you put in this file.<br>First column is the token without pair<br>Second column is the USDT amount.<br>It will always try to buy the token/USDT pair. If it's not listed in the exchange, it will see if <token>BTC is listed, and if so, it will buy BTCUSDT first, and then token/BTC.
 
 ## Installation step 2
 
-- [Install Docker](https://docs.docker.com/get-docker/ "Docker")
+- [Install Docker](https://docs.docker.com/engine/install/ "Docker")
 
 - `cd bashcrypto`
 
@@ -66,6 +67,14 @@ Third, click on the link below, and copy the `chat_id` that appears in the the p
 
 - `./crypto.bash -h`  
 
+## Security
+
+- As we are talking about people's money, it's better to be sure about compatibility, so Docker is mandatory, because now a days it's almost impossible to assure 100% POSIX to work in Mac, Debian, Redhat, etc.
+
+- Instead of creating a custom image already ready2go, I opted to use an official docker image, and include the system and the necessary packages only in the docker build. And I did that because I wouldn't use someone's image to take care of my money, so I don't want you/others to use a custom image also.
+
+- ATTENTION: Never share your API keys with other people!
+  
 ## Donate
 
 | Cryptocurrencies                                              | Network                   | Address                                                  |
