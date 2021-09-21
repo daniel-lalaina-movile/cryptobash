@@ -128,7 +128,7 @@ parse_params() {
   # Checking required params and arguments
 
   if [ "${param}" == "runaway" ]; then
-   exchange=$(echo ${@-} |grep -oP "(binance|gateio|ftx|all)" || die "Exchange argument is required for param ${param}.\nEx\n${script_name} -p ${param} binance\n${script_name} -p ${param} gateio\n${script_name} -p ${param} all")
+   exchange=$(echo ${@-} |grep -oP "(binance|gateio|ftx|all)" || die "Exchange argument is required for param ${param}.\nEx\n${script_name} -p ${param} binance\n${script_name} -p ${param} gateio\n${script_name} -p ${param} ftx\n${script_name} -p ${param} all")
 
   elif [ "${param}" == "overview" ]; then
    if echo ${@-} |grep -q telegram; then telegram="true"; progress_bar="false"; fi
@@ -319,17 +319,26 @@ if [[ $1 == "binance" ]]; then
   if [[ $4 == "quoteQty" ]]; then qtyType="quoteOrderQty"; qty=$5; elif [[ $4 == "baseQty" ]]; then qtyType="quantity"; else die "Unknown $1 qtyType"; fi
   get_supported_pairs binance
   read token_pair stepSize<<<$(grep -E "^${3}\s+" $tdir/binance_supported_pairs || grep -E "^${3}USDT\s+" $tdir/binance_supported_pairs || grep -E "^${3}BTC\s+" $tdir/binance_supported_pairs)
-  if echo $token_pair |grep -q "BTC$"; then
-   binance_endpoint="api/v3/ticker/price"
-   binance_query_string="symbol=BTCUSDT"
-   if [ -z $binance_btcusdt ]; then binance_btcusdt=$(curl_binance_public |jq -r .price); fi
-   qty=$(echo "$qty / $binance_btcusdt" |bc -l) 
+  if [ $qtyType == "quantity" ]; then
+   stepSize=$(echo $stepSize |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
+   decimal=$(echo "1 / $stepSize" |bc -l |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
+   qty_dec=$(echo "$qty * $decimal" |bc -l |sed -E 's/\..*//g')
+   qty=$(echo "$qty_dec / $decimal" |bc -l |sed -E 's/\.0+$//g; s/^\./0./g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
+  elif [ $qtyType == "quoteOrderQty" ]; then
+   if echo $token_pair |grep -q "BTC$"; then
+    binance_endpoint="api/v3/ticker/price"
+    binance_query_string="symbol=BTCUSDT"
+    if [ -z $binance_btcusdt ]; then binance_btcusdt=$(curl_binance_public |jq -r .price); fi
+    qty=$(echo "$qty / $binance_btcusdt" |bc -l |sed -E 's/^\./0./g; s/\.([0-9]{4}).*/.\1/g') 
+   elif echo $token_pair |grep -q "USDT$"; then
+    qty=$(echo "$qty" |sed 's/\..*//g')
+   else
+    die "unsupported quote pair"
+   fi
+  else
+   die "unsupported quote pair"
   fi
   #if echo "$qty < $stepSize" |bc -l |grep -q "^1$"; then return 0; fi
-  stepSize=$(echo $stepSize |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
-  decimal=$(echo "1 / $stepSize" |bc -l |sed -E 's/\.0+$//g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
-  qty_dec=$(echo "$5 * $decimal" |bc -l |sed -E 's/\..*//g')
-  qty=$(echo "$qty_dec / $decimal" |bc -l |sed -E 's/\.0+$//g; s/^\./0./g; s/(\.[0-9]+?[1-9]+)[0]+$/\1/g')
   binance_method="POST"
   binance_endpoint="api/v3/order$test"
   binance_timestamp=$(func_timestamp)
