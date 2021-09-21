@@ -31,7 +31,7 @@ mkdir $script_dir/temp/$temp_dir
 
 # docker version compatibility
 if docker run --help |grep -q "\-\-mount"; then
- mount="--mount source=$script_dir,target=/cryptobash"
+ mount="--mount type=bind,source=$script_dir,target=/cryptobash"
 elif docker run --help  |grep -q "\-v, \-\-volume list"; then
  mount="-v $script_dir:/cryptobash"
 else
