@@ -5,6 +5,12 @@
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)
 cd $script_dir
 
+for temp_dir in `ls -1 temp/`; do
+ if [ $(echo "$(date +%s) - $(stat --format=%Y temp/$temp_dir)" |bc -l) -gt 7500 ]; then
+  rm -rf temp/$temp_dir
+ fi
+done
+
 parameters="$@"
 
 if echo "$parameters" |grep -Eq  "stop"; then
