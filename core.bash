@@ -136,7 +136,7 @@ parse_params() {
 
   elif [ "${param}" == "rebalance" ]; then
    [ -f $rebalance_file ] || die "Missing $rebalance_file"
-   sed -E 's/\s+/ /g' $rebalance_file
+   sed -E 's/\s+/ /g; s///g' $rebalance_file
    missing_tokens_action==$(echo ${@-} |grep -oP "\b(force|keep)\b" || echo "warn")
 
   elif [ ${param} == "order" ]; then
@@ -196,7 +196,7 @@ curl_fiat_usd_rate() {
 }
 
 curl_telegram() {
- curl -s -H 'content-type: application/json' -d '{ "chat_id": '${telegram_chat_id}', "text": "```\n'"$(cat $tdir/total_per_exchange |column -t -o ' | ' |sed ':a;N;$!ba;s/\n/\\n/g')"'\n\n'"$(cat $tdir/total_result |column -t -o ' | ' |sed ':a;N;$!ba;s/\n/\\n/g')"'```", "parse_mode":"MarkdownV2" }' 'https://api.telegram.org/bot'${telegram_key}'/sendMessage'
+ curl -s -H 'content-type: application/json' -d '{ "chat_id": '${telegram_chat_id}', "text": "```\n'"$(cat $tdir/total_per_exchange |column -t -o ' | ' |sed ':a;N;$!ba;s/\n/\\n/g')"'\n\n'"$(cat $tdir/total_result |column -t -o ' | ' |sed ':a;N;$!ba;s/\n/\\n/g')"'```", "parse_mode":"MarkdownV2" }' 'https://api.telegram.org/bot'${telegram_key}'/sendMessage' >/dev/null
  return
 }
 
@@ -359,7 +359,8 @@ elif [[ $1 == "gateio" ]]; then
   gateio_endpoint="api/v4/spot/tickers"
   gateio_last_price=$(curl_gateio_public |jq -r '.[].last')
   if [[ $4 == "baseQty" ]]; then qty="$5"; elif [[ $4 == "quoteQty" ]]; then qty=$(echo "$5 / $gateio_last_price" | bc -l); else die "Unknown $1 qtyType" ; fi
-  gateio_price=$(echo "scale=${price_scale}; $gateio_last_price * 0.997" |bc -l |sed -E 's/^\./0./g')
+  if [ $2 == "buy" ]; then calc_price=1.01; else calc_price=0.99; fi
+  gateio_price=$(echo "scale=${price_scale}; $gateio_last_price * $calc_price" |bc -l |sed -E 's/^\./0./g')
   qty=$(echo "scale=${amount_scale}; $qty / 1" |bc -l |sed -E 's/^\./0./g')
   gateio_method="POST"
   gateio_query_string=""
