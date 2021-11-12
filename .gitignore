@@ -1,4 +1,6 @@
 temp/*
 .fiat_deposits
 .rebalance
+.rebalance?
 .credentials
+auto*
