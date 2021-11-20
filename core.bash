@@ -192,6 +192,7 @@ func_timestamp() {
 }
 
 curl_fiat_usd_rate() {
+ curl -s "https://currencyapi.net/api/v1/rates?key=${currencyapi_key}" |jq .rates.${residential_country_currency} |grep -oP '[0-9]+\.[0-9]+' || \
  curl -s -H 'user-agent: Mozilla' -H 'Accept-Language: en-US,en;q=0.9,it;q=0.8' "https://www.google.com/search?q=1+usd+to+$residential_country_currency" |grep -oP "USD = [0-9]+\\.[0-9]+ $residential_country_currency" |head -n1 |grep -oP "[0-9]+\\.[0-9]+" |tr -d '\n'
  return
 }
